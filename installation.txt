@@ -1,0 +1,19 @@
+
+
+### Old
+conda install pyqtgraph
+pip install pyqt5
+#pip install matplotlib
+conda install scipy
+conda install numpy
+#conda install pillow
+
+# New
+conda install python=3.5 pyqtgraph scipy numpy
+pip install pyqt5 pypng
+
+
+# install oitg
+python setup.py develop
+
+# pyinstaller profiler_gui.py -y --paths $CONDA_PREFIX/Lib/site-packages/PyQt5/Qt/bin -d --exclude-module matplotlib --paths $CONDA_PREFIX/Lib/site-packages --paths $CONDA_PREFIX/Lib/site-packages/Library/bin --distpath dist_2

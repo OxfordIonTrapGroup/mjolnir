@@ -10,9 +10,14 @@ def twod_fit(image):
     # m rows
     # n columns
     m, n = image.shape
-    # look at numpy mgrid
-    x = np.outer(np.arange(m), np.ones(n)).flatten()
-    y = np.outer(np.ones(m), np.arange(n)).flatten()
+
+    # get a vector of the x,y coordinates of each data point
+    x,y = np.mgrid[0:m,0:n]
+    x = x.flatten()
+    y = y.flatten()
+    # this is equivalent to:
+    # x = np.outer(np.arange(m), np.ones(n)).flatten()
+    # y = np.outer(np.ones(m), np.arange(n)).flatten()
 
     min_ = np.min(image)
     sum_ = np.sum(image - min_)
@@ -49,7 +54,7 @@ def main():
 
     # generate image
     # this gives us the location of 10000 clicks
-    data = np.random.multivariate_normal(mean, cov, 10000)
+    data = multivariate_normal(mean, cov).rvs(10000)
     # make sure all points are within bounds
     np.clip(data, [0,0], [m-1,n-1])
     data = np.round(data)

@@ -2,89 +2,70 @@ import numpy as np
 from scipy.stats import multivariate_normal
 import matplotlib.pyplot as plt
 from numpy.linalg import eig
-
+import matplotlib.image as mpimg
 from mpl_toolkits.mplot3d import Axes3D
+from image_tools import twod_fit
 
-# https://mathematica.stackexchange.com/a/27853
-def twod_fit(image):
-    # m rows
-    # n columns
-    m, n = image.shape
 
-    # get a vector of the x,y coordinates of each data point
-    x,y = np.mgrid[0:m,0:n]
-    x = x.flatten()
-    y = y.flatten()
-    # this is equivalent to:
-    # x = np.outer(np.arange(m), np.ones(n)).flatten()
-    # y = np.outer(np.ones(m), np.arange(n)).flatten()
-
-    min_ = np.min(image)
-    sum_ = np.sum(image - min_)
-    p = ((image - min_)/sum_)
-
-    # phwoar one liner
-    #mean = np.array([np.sum(np.multiply(mesh,p))
-    #                 for mesh in np.mgrid[0:m,0:n]])
-
-    p = p.flatten()
-    mx = np.dot(x, p)
-    my = np.dot(y, p)
-    mean = np.array([mx, my])
-    cov = np.zeros((2,2))
-    cov[0,0] = np.dot((x-mx)**2, p)
-    cov[0,1] = np.dot((x-mx)*(y-my), p)
-    cov[1,0] = cov[0,1]
-    cov[1,1] = np.dot((y-my)**2, p)
-
-    w, v = eig(cov)
-
-    return mean, cov, w, v
-
-def main():
-    fig = plt.figure()
-    ax = fig.add_subplot(111, projection='3d')
-
-    m = 100
-    n = 100
-    mean = [40, 50]
-    cov = [[10, 10],
-           [10, 20]]
-    w,v = eig(cov)
+def generate_image(m,n):
+    m = 1024
+    n = 1280
+    mean = [400, 500]
+    cov = [[100, 100],
+           [100, 200]]
 
     # generate image
-    # this gives us the location of 10000 clicks
-    data = multivariate_normal(mean, cov).rvs(10000)
+    # this gives us the location of nclicks
+    nclicks
+    data = multivariate_normal(mean, cov).rvs(nclicks)
     # make sure all points are within bounds
+    # this isn't perfect but so long as not too many points are near
+    # the edge then it's fine
     np.clip(data, [0,0], [m-1,n-1])
     data = np.round(data)
     data = data.astype(int)
-    #print(data)
+
     # sum to get image data
-    image = np.zeros([m,n],dtype=float)
+    img = np.zeros([m,n],dtype=float)
     for d in data:
-        image[d[0],d[1]] += 0.0001
+        img[d[0],d[1]] += 1.0/nclicks
 
-    #print(image)
+    # scale it
+    max_ = 225.0
+    img *= max_/np.maximum(img)
 
-    # should use mgrid here as well
-    # x,y = np.mgrid[0:m,0:n]
-    x = np.outer(np.arange(m), np.ones(n))
-    y = np.outer(np.ones(m), np.arange(n))
+    return m, n, img
+
+
+
+def load_image(fname):
+    img = mpimg.imread(fname)
+    m, n = img.shape
+    img = img.astype(float)
+    return m, n, img
+
+
+def main():
+    # Plot a 3d mesh of the image data
+    # and a surface of the fit
+    # maybe use this to test eigenvectors as well
+    fig = plt.figure()
+    ax = fig.add_subplot(111, projection='3d')
+
+    m, n, image = load_image("colimated.bmp")
+
+    x,y = np.mgrid[0:m,0:n]
     ax.plot_wireframe(x,y,image)
 
-    mean, cov, w, v = twod_fit(image)
+    r = twod_fit(image)
 
     pos = np.empty(x.shape + (2,))
     pos[:, :, 0] = x
     pos[:, :, 1] = y
 
-    rv = multivariate_normal(mean,cov)
-    ax.plot_surface(x,y,rv.pdf(pos),alpha=0.4)
+    rv = multivariate_normal(r['mean'],r['cov'])
+    ax.plot_surface(x,y,(rv.pdf(pos)*r['scale'])+r['min'],alpha=0.4)
 
-    print(mean)
-    print(w)
-    print(v)
     plt.show()
 
 

@@ -7,7 +7,7 @@ from PyQt5 import QtCore
 from PyQt5 import QtWidgets
 
 import sys
-import traceback 
+import traceback
 import numpy as np
 import png
 import datetime
@@ -41,7 +41,7 @@ class ProfilerGUI(QtWidgets.QMainWindow):
         self.layout = QtWidgets.QHBoxLayout(self)
         self.widget = QtWidgets.QWidget(self)
         self.setCentralWidget(self.widget)
-        
+
         self.info_pane = QtWidgets.QWidget(self)
         self.info_pane_layout = QtWidgets.QVBoxLayout(self)
         self.info_pane_layout.setAlignment(QtCore.Qt.AlignTop)
@@ -104,7 +104,7 @@ class ProfilerGUI(QtWidgets.QMainWindow):
         self.exposure_slider.setRange(0,100)
         self.exposure_slider.setValue(1)
         self.exposure_slider.setOrientation(QtCore.Qt.Horizontal)
-        
+
         self.exposure_label = QtWidgets.QLineEdit(self)
         self.exposure_label.setText('Exposure: ')
         self.exposure_label.setAlignment(QtCore.Qt.AlignLeft)
@@ -149,16 +149,16 @@ class ProfilerGUI(QtWidgets.QMainWindow):
         qGraphicsGridLayout = self.g_layout.ci.layout
         qGraphicsGridLayout.setColumnStretchFactor(0, 2)
         qGraphicsGridLayout.setRowStretchFactor(0, 2)
-        
+
         #img = cam.acquire().transpose()
         #img = loadImage('Waists/colimated.bmp')[1]
         img = np.zeros((2,2))
         self.item_MainImage = pg.ImageItem(img)
         self.vb_image.addItem(self.item_MainImage)
-        
+
         self.item_SmallImage = pg.ImageItem(img)
         self.vb_small_image.addItem(self.item_SmallImage)
-        
+
         self.item_SmallImageOutline = pg.ImageItem(img)
         self.item_SmallImageOutline.setCompositionMode(QtGui.QPainter.CompositionMode_Plus)
         self.vb_small_image.addItem(self.item_SmallImageOutline)
@@ -170,7 +170,7 @@ class ProfilerGUI(QtWidgets.QMainWindow):
         self.vb_bottom.addItem(self.item_HPlot)
         self.vb_bottom.addItem(self.item_HPlotFit)
         self.vb_bottom.setRange(yRange=[0,255])
-        
+
         self.item_VPlotFit = pg.PlotDataItem(np.zeros(2),pen={'width':2})
         self.item_VPlot = pg.PlotDataItem(np.zeros(2),pen=None, symbol='o', pxMode=True, symbolSize=4)
 

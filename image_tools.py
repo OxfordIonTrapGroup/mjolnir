@@ -1,6 +1,7 @@
 
 # import matplotlib.image as mpimage
 import numpy as np
+from scipy.stats import multivariate_normal
 from oitg.fitting.gaussian_beam import gaussian_beam
 
 import scipy.ndimage.filters
@@ -10,7 +11,7 @@ pixel_size = 5.2
 # def load_image(filename):
 #     image = mpimage.imread(filename)
 #     height, width = image.shape[0:2]
-    
+
 #     # If the image is not mono, make it mono
 #     if len(image.shape) > 2:
 #         # not implemented
@@ -94,7 +95,6 @@ def fit_image(image):
     amp_x = row_p['a']
     amp_y = col_p['a']
 
-    
     outlined_image = np.zeros(image.shape)
     lw = 20
     val = 255
@@ -108,7 +108,7 @@ def fit_image(image):
                 mask_lim_x[0]-int(lw/2):mask_lim_x[1]+int(lw/2)] = val
 
     fit_results = {}
-    
+
     fit_results["image_zoom"] = image[mask_lim_y[0]:mask_lim_y[1],\
         mask_lim_x[0]:mask_lim_x[1]]
 
@@ -134,6 +134,125 @@ def fit_image(image):
     fit_results["amp_y"] = amp_y
 
     return fit_results
+
+
+# note that this code may have x and y swapped, please check!
+#
+# algorithm from:
+# https://mathematica.stackexchange.com/a/27853
+m = 1024
+n = 1280
+# gets a matrix each for the x,y coordinates of each data point
+xx,yy = np.mgrid[0:m,0:n]
+x = xx.flatten()
+y = yy.flatten()
+def twod_fit(image):
+    # m columns
+    # n rows
+    # m, n = image.shape
+
+    # rescale so that this is a probability distribution
+    # makes following calculations easier
+    min_ = np.minimum(image)
+    sum_ = np.sum(image - min_)
+    p = ((image - min_)/sum_).flatten()
+
+    mx = np.dot(x, p)
+    my = np.dot(y, p)
+    mean = np.array([mx, my])
+
+    cov = np.zeros((2,2))
+    cov[0,0] = np.dot((x-mx)**2, p)
+    cov[0,1] = np.dot((x-mx)*(y-my), p)
+    cov[1,0] = cov[0,1]
+    cov[1,1] = np.dot((y-my)**2, p)
+
+    e_val, e_vec = np.linalg.eig(cov)
+
+    results = {}
+    results['mean'] = mean    # vector containing centre x and y pixel values
+    results['cov'] = cov      # covariance matrix
+    results['min'] = min_
+    results['scale'] = sum_
+    results['pixel_size'] = pixel_size
+
+    # eigenvalues are the variance in the direction of the eigenvectors
+    results['eigvals'], results['eigvecs'] = np.linalg.eig(cov)
+
+    # ======================================
+    # now backwards compatible return values
+    #
+    def stddev_xy(cov):
+        """Return stddev radius in x,y from covariance matrix"""
+        # think this is right but not 100% sure
+        # we're inverting the covariance matrix
+        # see https://en.wikipedia.org/wiki/Multivariate_normal_distribution#Estimation_of_parameters
+        varx = cov[0,0] - cov[0,1]*cov[1,0]
+        vary = cov[1,1] - cov[0,1]*cov[1,0]
+        var = np.array([varx, vary])
+
+        return np.sqrt(var)
+
+    def amplitude(cov, sum_, min_=0):
+        """Return peak value of 2D gaussian from covariance matrix,
+        pizel sum and minimum"""
+        return min_ + sum_/(2*np.pi*np.sqrt(np.linalg.det(cov)))
+
+    def get_mask_lim(centre, size, max_):
+        lim = np.array([centre - size/2, centre + size/2])
+        lim = np.around(lim).astype(int)
+        lim = np.clip(lim, 0, max_)
+        return lim
+
+    # uses simple list unpacking
+    results['x'], results['y'] = mean*pixel_size
+
+    # width in pixels (still floating point)
+    wp = stddev_xy(cov)
+    results['wx'], results['wy'] = wp*pixel_size
+
+    # these should be the same by definition: now they are
+    amp = amplitude(cov, sum_, min_)
+    results["amp_x"] = amp
+    results["amp_y"] = amp
+
+    mask_size = 3
+    limx = get_mask_lim(mean[0], mask_size*wp[0], n)
+    limy = get_mask_lim(mean[1], mask_size*wp[1], m)
+
+    outlined_image = np.zeros(image.shape)
+    hlw = 10  # half width of line in pixels
+    val = 255 # pixel value
+    outlined_image[limy[0]-hlw:limy[1]+hlw, limx[0]-hlw:limx[0]+hlw] = val
+    outlined_image[limy[0]-hlw:limy[1]+hlw, limx[1]-hlw:limx[1]+hlw] = val
+    outlined_image[limy[0]-hlw:limy[0]+hlw, limx[0]-hlw:limx[1]+hlw] = val
+    outlined_image[limy[1]-hlw:limy[1]+hlw, limx[0]-hlw:limx[1]+hlw] = val
+
+    mv = multivariate_normal(mean, cov)
+    x0, y0 = mean.astype(int)
+
+    # NB these x,y are not the same as above!
+    # these could be right or wrong
+    pos = np.empty((limx[1]-limx[0], 2))
+    pos[:,0] = xx[y0,limx[0]:limx[1]]
+    pos[:,1] = yy[y0,limx[0]:limx[1]]
+    results["row_x_fit"] = pos[:,1]
+    results["row_y_fit"] = (mv.pdf(pos)*sum_)+min_
+    results["row_x_data"] = pos[:,1]
+    results["row_y_data"] = image[y0,limx[0]:limx[1]]
+
+    pos = np.empty((limy[0]-limy[1], 2))
+    pos[:,0] = xx[limy[0]:limy[1],x0]
+    pos[:,1] = yy[limy[0]:limy[1],x0]
+    results["col_y_fit"] = pos[:,0]
+    results["col_x_fit"] = (mv.pdf(pos)*sum_)+min_
+    results["col_y_data"] = pos[:,0]
+    results["col_x_data"] = image[limy[0]:limy[1],x0]
+
+    results["image_zoom"] = image[limy[0]:limy[1],limx[0]:limx[1]]
+    results["outlined_image"] = outlined_image
+
+    return results
 
 # if __name__ == "__main__":
 

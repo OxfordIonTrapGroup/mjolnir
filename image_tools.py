@@ -153,7 +153,7 @@ def twod_fit(image):
 
     # rescale so that this is a probability distribution
     # makes following calculations easier
-    min_ = np.minimum(image)
+    min_ = np.amin(image)
     sum_ = np.sum(image - min_)
     p = ((image - min_)/sum_).flatten()
 
@@ -187,8 +187,9 @@ def twod_fit(image):
         # think this is right but not 100% sure
         # we're inverting the covariance matrix
         # see https://en.wikipedia.org/wiki/Multivariate_normal_distribution#Estimation_of_parameters
-        varx = cov[0,0] - cov[0,1]*cov[1,0]
-        vary = cov[1,1] - cov[0,1]*cov[1,0]
+        varx = np.abs(cov[0,0] - cov[0,1]*cov[1,0])
+        vary = np.abs(cov[1,1] - cov[0,1]*cov[1,0])
+        # shouldn't need the abs...
         var = np.array([varx, vary])
 
         return np.sqrt(var)
@@ -216,7 +217,7 @@ def twod_fit(image):
     results["amp_x"] = amp
     results["amp_y"] = amp
 
-    mask_size = 3
+    mask_size = 0.5
     limx = get_mask_lim(mean[0], mask_size*wp[0], n)
     limy = get_mask_lim(mean[1], mask_size*wp[1], m)
 
@@ -231,8 +232,14 @@ def twod_fit(image):
     mv = multivariate_normal(mean, cov)
     x0, y0 = mean.astype(int)
 
-    # NB these x,y are not the same as above!
-    # these could be right or wrong
+    # NB confusing notation here (to match up to Tim's existing code)
+    # xx is the matrix of x positions of each pixel
+    # (where x is the *column* number)
+    # yy is similar for y and row number
+    # row_x_data/row_x_fit are both just the pixel positions in the row
+    # row_y_data/row_y_fit are the pixel (real/fitted) values
+    # pos gives the pixel (x,y) positions, needed for 2d normal fit values
+    #
     pos = np.empty((limx[1]-limx[0], 2))
     pos[:,0] = xx[y0,limx[0]:limx[1]]
     pos[:,1] = yy[y0,limx[0]:limx[1]]
@@ -241,13 +248,13 @@ def twod_fit(image):
     results["row_x_data"] = pos[:,1]
     results["row_y_data"] = image[y0,limx[0]:limx[1]]
 
-    pos = np.empty((limy[0]-limy[1], 2))
+    pos = np.empty((limy[1]-limy[0], 2))
     pos[:,0] = xx[limy[0]:limy[1],x0]
     pos[:,1] = yy[limy[0]:limy[1],x0]
-    results["col_y_fit"] = pos[:,0]
-    results["col_x_fit"] = (mv.pdf(pos)*sum_)+min_
-    results["col_y_data"] = pos[:,0]
-    results["col_x_data"] = image[limy[0]:limy[1],x0]
+    results["col_x_fit"] = pos[:,0]
+    results["col_y_fit"] = (mv.pdf(pos)*sum_)+min_
+    results["col_x_data"] = pos[:,0]
+    results["col_y_data"] = image[limy[0]:limy[1],x0]
 
     results["image_zoom"] = image[limy[0]:limy[1],limx[0]:limx[1]]
     results["outlined_image"] = outlined_image

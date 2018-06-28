@@ -1,10 +1,11 @@
 import numpy as np
 from scipy.stats import multivariate_normal
 import matplotlib.pyplot as plt
+from matplotlib import cm
 from numpy.linalg import eig
 import matplotlib.image as mpimg
 from mpl_toolkits.mplot3d import Axes3D
-from image_tools import twod_fit
+from image_tools import twod_fit, fit_image
 
 
 def generate_image(m,n):
@@ -55,16 +56,32 @@ def main():
     m, n, image = load_image("colimated.bmp")
 
     x,y = np.mgrid[0:m,0:n]
-    ax.plot_wireframe(x,y,image)
+
+    surf = ax.plot_surface(x, y, image, cmap=cm.gray, alpha=0.2)
 
     r = twod_fit(image)
+    o = fit_image(image)
 
     pos = np.empty(x.shape + (2,))
     pos[:, :, 0] = x
     pos[:, :, 1] = y
 
     rv = multivariate_normal(r['mean'],r['cov'])
-    ax.plot_surface(x,y,(rv.pdf(pos)*r['scale'])+r['min'],alpha=0.4)
+    ax.plot_surface(x, y, (rv.pdf(pos)*r['scale'])+r['min'],
+        cmap=cm.coolwarm, alpha=0.6)
+
+    fig = plt.figure()
+    ax = fig.add_subplot(211)
+    ax.scatter(r['row_x_data'], r['row_y_data'])
+    ax.plot(r['row_x_fit'],r['row_y_fit'])
+    ax.scatter(o['row_x_data'], o['row_y_data'])
+    ax.plot(o['row_x_fit'],o['row_y_fit'])
+
+    ax = fig.add_subplot(212)
+    ax.scatter(r['col_x_data'], r['col_y_data'])
+    ax.plot(r['col_x_fit'],r['col_y_fit'])
+    ax.scatter(o['col_x_data'], o['col_y_data'])
+    ax.plot(o['col_x_fit'],o['col_y_fit'])
 
     plt.show()
 

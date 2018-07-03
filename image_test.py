@@ -66,6 +66,15 @@ def main():
     pos[:, :, 0] = x
     pos[:, :, 1] = y
 
+    px = x[r['limy'][0]:r['limy'][1], r['limx'][0]:r['limx'][1]]
+    py = y[r['limy'][0]:r['limy'][1], r['limx'][0]:r['limx'][1]]
+    pp = np.empty(x.shape + (2,))
+    pp[:, :, 0] = px
+    pp[:, :, 1] = py
+
+    zoom = r['image_zoom']
+    ll_fit = multivariate_normal.fit()
+
     rv = multivariate_normal(r['mean'],r['cov'])
     ax.plot_surface(x, y, (rv.pdf(pos)*r['scale'])+r['min'],
         cmap=cm.coolwarm, alpha=0.6)

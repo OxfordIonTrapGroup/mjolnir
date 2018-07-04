@@ -58,18 +58,25 @@ def main():
 
     x,y = np.mgrid[0:m,0:n]
 
-    r = twod_fit(image)
+    prelim = twod_fit(image)
+    xmean,ymean = np.around(prelim['mean']).astype(int)
+    mask = np.full_like(image, False, dtype=bool)
+    mask[xmean-25:xmean+25, ymean-25:ymean+25] = True
+
+    doctored = np.copy(image)
+    doctored[~mask] = 0.
+    r = twod_fit(doctored)
     o = fit_image(image)
 
     xy = np.mgrid[0:m,0:n]
-    p = gaussian_beam().fit(xy, image)
+    # p = gaussian_beam().fit(xy, image)
 
-    print(r['mean'], p['mean'])
-    print(r['cov'], p['cov'])
-    print(r['scale'], p['scale'])
+    # print(r['mean'], p['mean'])
+    # print(r['cov'], p['cov'])
+    # print(r['scale'], p['scale'])
 
     pos = np.empty((50,50,2))
-    xmean,ymean = np.around(r['mean']).astype(int)
+
     pos[:, :, 0] = x[xmean-25:xmean+25, ymean-25:ymean+25]
     pos[:, :, 1] = y[xmean-25:xmean+25, ymean-25:ymean+25]
 
@@ -80,9 +87,9 @@ def main():
     ax.plot_surface(pos[:,:,0], pos[:,:,1], (rv.pdf(pos)*r['scale'])+r['min'],
         cmap=cm.coolwarm, alpha=0.6)
 
-    rv = multivariate_normal(p['mean'],p['cov'])
-    ax.plot_surface(pos[:,:,0], pos[:,:,1], (rv.pdf(pos)*p['scale'])+p['offset'],
-        cmap=cm.plasma, alpha=0.6)
+    # rv = multivariate_normal(p['mean'],p['cov'])
+    # ax.plot_surface(pos[:,:,0], pos[:,:,1], (rv.pdf(pos)*p['scale'])+p['offset'],
+    #     cmap=cm.plasma, alpha=0.6)
 
 
     fig = plt.figure()

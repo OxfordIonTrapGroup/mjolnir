@@ -29,6 +29,29 @@ def unpack(p):
     return args
 
 
+def det2x2(m):
+    """2x2 determinant"""
+    assert m.shape == (2,2)
+    return m[0,0]*m[1,1] - m[0,1]*m[1,0]
+
+
+def inv2x2(m):
+    """2x2 matrix inverse"""
+    assert m.shape == (2,2)
+    det = det2x2(m)
+    assert det != 0
+
+    inv = np.empty((2,2))
+    inv[0,0] = m[1,1]/det
+    inv[0,1] = -m[0,1]/det
+    inv[1,0] = -m[1,0]/det
+    inv[1,1] = m[0,0]/det
+
+    assert np.allclose(inv@m, np.eye(2))
+
+    return inv
+
+
 def parameter_initialiser(x, y):
     # x is like np.mgrid[0:m.0:n]
     y0 = np.amin(y)
@@ -61,15 +84,8 @@ def _fitting_function(x, p):
     x = np.einsum("i...->...i", x)
     d = x - x0
 
-    # these operations can be done with numpy.linalg, but that's probably very
-    # slow. our covariance matrix is symmetric by definition and can easily be
-    # inverted manually
-    det = cov[0,0]*cov[0,0] - cov[0,1]*cov[0,1]
-    inv = np.zeros((2,2))
-    inv[0,0] = cov[1,1]/det
-    inv[0,1] = -cov[0,1]/det
-    inv[1,0] = inv[0,1]
-    inv[1,1] = cov[0,0]/det
+    det = det2x2(cov)
+    inv = inv2x2(cov)
 
     pref = (1/(2*np.pi*np.sqrt(np.abs(det))))
     expo = -0.5*np.einsum("...k,kl,...l->...", d, inv, d)

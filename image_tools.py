@@ -2,7 +2,7 @@
 # import matplotlib.image as mpimage
 import numpy as np
 from scipy.stats import multivariate_normal
-from oitg.fitting.gaussian_beam import gaussian_beam
+from oitg.fitting.gaussian import gaussian
 
 import scipy.ndimage.filters
 
@@ -26,7 +26,7 @@ pixel_size = 5.2
 
 def fit_slice(x_data, y_data, x0):
 
-    p, p_error, x_fit, y_fit = gaussian_beam.fit(
+    p, p_error, x_fit, y_fit = gaussian.fit(
         x_data, y_data, evaluate_function=True,
         initialise={'x0':x0})
 

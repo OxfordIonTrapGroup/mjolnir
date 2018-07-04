@@ -268,6 +268,10 @@ def derived_results(image, mean, cov, offset, scale):
     results["image_zoom"] = image[limy[0]:limy[1],limx[0]:limx[1]]
     results["outlined_image"] = outlined_image
 
+    #  this is for trying a multivariate lsq
+    results["limx"] = limx
+    results["limy"] = limy
+
     return results
 
 # if __name__ == "__main__":

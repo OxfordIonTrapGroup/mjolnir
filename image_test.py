@@ -83,6 +83,15 @@ def main():
     ax.plot_wireframe(pos[:,:,0], pos[:,:,1],
         image[xmean-25:xmean+25, ymean-25:ymean+25])
 
+    px = x[r['limy'][0]:r['limy'][1], r['limx'][0]:r['limx'][1]]
+    py = y[r['limy'][0]:r['limy'][1], r['limx'][0]:r['limx'][1]]
+    pp = np.empty(x.shape + (2,))
+    pp[:, :, 0] = px
+    pp[:, :, 1] = py
+
+    zoom = r['image_zoom']
+    ll_fit = multivariate_normal.fit()
+
     rv = multivariate_normal(r['mean'],r['cov'])
     ax.plot_surface(pos[:,:,0], pos[:,:,1], (rv.pdf(pos)*r['scale'])+r['min'],
         cmap=cm.coolwarm, alpha=0.6)

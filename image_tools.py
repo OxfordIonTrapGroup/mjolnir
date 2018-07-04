@@ -240,21 +240,21 @@ def twod_fit(image):
     # row_y_data/row_y_fit are the pixel (real/fitted) values
     # pos gives the pixel (x,y) positions, needed for 2d normal fit values
     #
-    pos = np.empty((limx[1]-limx[0], 2))
-    pos[:,0] = xx[y0,limx[0]:limx[1]]
-    pos[:,1] = yy[y0,limx[0]:limx[1]]
+    pos = np.empty((limy[1]-limy[0], 2))
+    pos[:,0] = xx[x0,limy[0]:limy[1]]
+    pos[:,1] = yy[x0,limy[0]:limy[1]]
     results["row_x_fit"] = pos[:,1]
     results["row_y_fit"] = (mv.pdf(pos)*sum_)+min_
     results["row_x_data"] = pos[:,1]
-    results["row_y_data"] = image[y0,limx[0]:limx[1]]
+    results["row_y_data"] = image[x0,limy[0]:limy[1]]
 
-    pos = np.empty((limy[1]-limy[0], 2))
-    pos[:,0] = xx[limy[0]:limy[1],x0]
-    pos[:,1] = yy[limy[0]:limy[1],x0]
+    pos = np.empty((limx[1]-limx[0], 2))
+    pos[:,0] = xx[limx[0]:limx[1],y0]
+    pos[:,1] = yy[limx[0]:limx[1],y0]
     results["col_x_fit"] = pos[:,0]
     results["col_y_fit"] = (mv.pdf(pos)*sum_)+min_
     results["col_x_data"] = pos[:,0]
-    results["col_y_data"] = image[limy[0]:limy[1],x0]
+    results["col_y_data"] = image[limx[0]:limx[1],y0]
 
     results["image_zoom"] = image[limy[0]:limy[1],limx[0]:limx[1]]
     results["outlined_image"] = outlined_image

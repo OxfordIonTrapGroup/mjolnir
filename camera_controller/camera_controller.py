@@ -247,9 +247,10 @@ class ThorlabsCCD:
         self.c.call("is_AOI", self.c._camID, uc480.IS_AOI_IMAGE_GET_POS_Y_ABS,
             ctypes.pointer(y_abs), ctypes.sizeof(y_abs))
 
-        if np.all([x_abs, y_abs]):
+        truth_table = np.array([x_abs, y_abs], dtype=bool)
+        if np.all(truth_table):
             self.aoi_absolute = True
-        elif not np.any([x_abs, y_abs]):
+        elif not np.any(truth_table):
             self.aoi_absolute = False
         else:
             print("either both or neither axis of aoi should be absolute")

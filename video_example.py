@@ -22,11 +22,17 @@ while n_acquired < 5:
     n_acquired += len(imVec)
 print("n_acquired = {}. Frame rate = {} /s".format(n_acquired, n_acquired/(time.time()-t_start)))
 
-im = cam.get_image()
+im=None
+while im is None:
+    im = cam.get_image()
+    time.sleep(0.05)
 print(im.shape)
 
 cam.set_image_region(0,512, 0, 256)
 print("set region")
 
-im = cam.get_image()
+im=None
+while im is None:
+    im = cam.get_image()
+    time.sleep(0.05)
 print(im.shape)

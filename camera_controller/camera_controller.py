@@ -239,11 +239,11 @@ class ThorlabsCCD:
         return self.aoi_x, self.aoi_y, self.aoi_width, self.aoi_height
 
     def _get_aoi_absolute(self):
-        x_abs = ctypes.c_int32
+        x_abs = ctypes.c_int32()
         self.c.call("is_AOI", self.c._camID, uc480.IS_AOI_IMAGE_GET_POS_X_ABS,
             ctypes.pointer(x_abs), ctypes.sizeof(x_abs))
 
-        y_abs = ctypes.c_int32
+        y_abs = ctypes.c_int32()
         self.c.call("is_AOI", self.c._camID, uc480.IS_AOI_IMAGE_GET_POS_Y_ABS,
             ctypes.pointer(y_abs), ctypes.sizeof(y_abs))
 

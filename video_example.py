@@ -7,8 +7,6 @@ print("imported", flush=True)
 cam = ThorlabsCCD()
 print("connected!", flush=True)
 
-cam.set_image_region(0,512, 260,300)
-print("set region")
 cam.set_exposure_time(0.01)
 print("set exposure", flush=True)
 
@@ -23,3 +21,12 @@ while n_acquired < 5:
         continue
     n_acquired += len(imVec)
 print("n_acquired = {}. Frame rate = {} /s".format(n_acquired, n_acquired/(time.time()-t_start)))
+
+im = cam.get_image()
+print(im.shape)
+
+cam.set_image_region(0,512, 0, 256)
+print("set region")
+
+im = cam.get_image()
+print(im.shape)

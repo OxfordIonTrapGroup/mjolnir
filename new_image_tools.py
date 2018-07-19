@@ -1,11 +1,5 @@
 import numpy as np
-from scipy.stats import multivariate_normal
-
-pixel_size = 5.2
-
-
-def naive_fit(x, y):
-    return parameter_initialiser(x, y)
+from scipy.optimize import curve_fit
 
 
 def det2x2(m):
@@ -98,3 +92,35 @@ def _fitting_function(x, p):
 def fitting_function(x, x0_0, x0_1, c00, c01, c11, a, y0):
     p = pack([x0_0, x0_1, c00, c01, c11, a, y0])
     return _fitting_function(x, p)
+
+
+class gaussian_beam:
+    def naive_fit(self, xdata, ydata):
+        return parameter_initialiser(xdata, ydata)
+
+    def two_step_fit(self, xdata, ydata, region=50):
+        p = parameter_initialiser(xdata, ydata)
+        hr = int(region/2)
+
+        ii,jj = np.around(prelim['x0']).astype(int)
+        mask = np.full_like(ydata, False, dtype=bool)
+        mask[ii-hr:ii+hr, jj-hr:jj+hr] = True
+
+        masked = np.copy(ydata)
+        masked[~mask] = 0.
+        r = parameter_initialiser(xdata, masked)
+        return r
+
+    def lsq_fit(self, xdata, ydata, p0_dict=None, **kwargs):
+        if p0_dict is None:
+            p0 = unpack(parameter_initialiser(xdata, ydata))
+        else:
+            p0 = None
+
+        _, m, n = xdata.shape
+        assert _ == 2
+        xdata = xdata.reshape(2, m*n)
+        ydata = ydata.reshape(m*n)     #just flatten
+
+        p_fit, p_err = curve_fit(fitting_function, xdata, ydata, p0=p0)
+        return pack(p_fit)

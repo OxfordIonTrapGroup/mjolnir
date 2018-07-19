@@ -179,6 +179,14 @@ def twod_fit(image):
     # eigenvalues are the variance in the direction of the eigenvectors
     results['eigvals'], results['eigvecs'] = np.linalg.eig(cov)
 
+    # back compatible return values
+    derived = derived_results(image, mean, cov, min_, sum_)
+    results.update(derived)
+
+    return results
+
+
+def derived_results(image, mean, cov, offset, scale):
     # ======================================
     # now backwards compatible return values
     #
@@ -194,17 +202,18 @@ def twod_fit(image):
 
         return np.sqrt(var)
 
-    def amplitude(cov, sum_, min_=0):
+    def amplitude(cov, scale, offset=0):
         """Return peak value of 2D gaussian from covariance matrix,
         pizel sum and minimum"""
-        return min_ + sum_/(2*np.pi*np.sqrt(np.linalg.det(cov)))
+        return offset + scale/(2*np.pi*np.sqrt(np.linalg.det(cov)))
 
-    def get_mask_lim(centre, size, max_):
+    def get_mask_lim(centre, size, max_pixel):
         lim = np.array([centre - size/2, centre + size/2])
         lim = np.around(lim).astype(int)
-        lim = np.clip(lim, 0, max_)
+        lim = np.clip(lim, 0, max_pixel)
         return lim
 
+    results = {}
     # uses simple list unpacking
     results['x'], results['y'] = mean*pixel_size
 
@@ -213,7 +222,7 @@ def twod_fit(image):
     results['wx'], results['wy'] = wp*pixel_size
 
     # these should be the same by definition: now they are
-    amp = amplitude(cov, sum_, min_)
+    amp = amplitude(cov, scale, offset)
     results["amp_x"] = amp
     results["amp_y"] = amp
 
@@ -240,21 +249,21 @@ def twod_fit(image):
     # row_y_data/row_y_fit are the pixel (real/fitted) values
     # pos gives the pixel (x,y) positions, needed for 2d normal fit values
     #
-    pos = np.empty((limx[1]-limx[0], 2))
-    pos[:,0] = xx[y0,limx[0]:limx[1]]
-    pos[:,1] = yy[y0,limx[0]:limx[1]]
-    results["row_x_fit"] = pos[:,1]
-    results["row_y_fit"] = (mv.pdf(pos)*sum_)+min_
-    results["row_x_data"] = pos[:,1]
-    results["row_y_data"] = image[y0,limx[0]:limx[1]]
-
     pos = np.empty((limy[1]-limy[0], 2))
-    pos[:,0] = xx[limy[0]:limy[1],x0]
-    pos[:,1] = yy[limy[0]:limy[1],x0]
+    pos[:,0] = xx[x0,limy[0]:limy[1]]
+    pos[:,1] = yy[x0,limy[0]:limy[1]]
+    results["row_x_fit"] = pos[:,1]
+    results["row_y_fit"] = (mv.pdf(pos)*scale)+offset
+    results["row_x_data"] = pos[:,1]
+    results["row_y_data"] = image[x0,limy[0]:limy[1]]
+
+    pos = np.empty((limx[1]-limx[0], 2))
+    pos[:,0] = xx[limx[0]:limx[1],y0]
+    pos[:,1] = yy[limx[0]:limx[1],y0]
     results["col_x_fit"] = pos[:,0]
-    results["col_y_fit"] = (mv.pdf(pos)*sum_)+min_
+    results["col_y_fit"] = (mv.pdf(pos)*scale)+offset
     results["col_x_data"] = pos[:,0]
-    results["col_y_data"] = image[limy[0]:limy[1],x0]
+    results["col_y_data"] = image[limx[0]:limx[1],y0]
 
     results["image_zoom"] = image[limy[0]:limy[1],limx[0]:limx[1]]
     results["outlined_image"] = outlined_image

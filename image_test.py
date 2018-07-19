@@ -6,6 +6,7 @@ from numpy.linalg import eig
 import matplotlib.image as mpimg
 from mpl_toolkits.mplot3d import Axes3D
 from image_tools import twod_fit, fit_image
+from gaussian_beam import gaussian_beam
 
 
 def generate_image(m,n):
@@ -53,18 +54,34 @@ def main():
     fig = plt.figure()
     ax = fig.add_subplot(111, projection='3d')
 
-    m, n, image = load_image("colimated.bmp")
+    m, n, image = load_image("focus.bmp")
 
     x,y = np.mgrid[0:m,0:n]
 
-    surf = ax.plot_surface(x, y, image, cmap=cm.gray, alpha=0.2)
+    prelim = twod_fit(image)
+    xmean,ymean = np.around(prelim['mean']).astype(int)
+    mask = np.full_like(image, False, dtype=bool)
+    mask[xmean-25:xmean+25, ymean-25:ymean+25] = True
 
-    r = twod_fit(image)
+    doctored = np.copy(image)
+    doctored[~mask] = 0.
+    r = twod_fit(doctored)
     o = fit_image(image)
 
-    pos = np.empty(x.shape + (2,))
-    pos[:, :, 0] = x
-    pos[:, :, 1] = y
+    xy = np.mgrid[0:m,0:n]
+    # p = gaussian_beam().fit(xy, image)
+
+    # print(r['mean'], p['mean'])
+    # print(r['cov'], p['cov'])
+    # print(r['scale'], p['scale'])
+
+    pos = np.empty((50,50,2))
+
+    pos[:, :, 0] = x[xmean-25:xmean+25, ymean-25:ymean+25]
+    pos[:, :, 1] = y[xmean-25:xmean+25, ymean-25:ymean+25]
+
+    ax.plot_wireframe(pos[:,:,0], pos[:,:,1],
+        image[xmean-25:xmean+25, ymean-25:ymean+25])
 
     px = x[r['limy'][0]:r['limy'][1], r['limx'][0]:r['limx'][1]]
     py = y[r['limy'][0]:r['limy'][1], r['limx'][0]:r['limx'][1]]
@@ -76,20 +93,25 @@ def main():
     ll_fit = multivariate_normal.fit()
 
     rv = multivariate_normal(r['mean'],r['cov'])
-    ax.plot_surface(x, y, (rv.pdf(pos)*r['scale'])+r['min'],
+    ax.plot_surface(pos[:,:,0], pos[:,:,1], (rv.pdf(pos)*r['scale'])+r['min'],
         cmap=cm.coolwarm, alpha=0.6)
+
+    # rv = multivariate_normal(p['mean'],p['cov'])
+    # ax.plot_surface(pos[:,:,0], pos[:,:,1], (rv.pdf(pos)*p['scale'])+p['offset'],
+    #     cmap=cm.plasma, alpha=0.6)
+
 
     fig = plt.figure()
     ax = fig.add_subplot(211)
-    ax.scatter(r['row_x_data'], r['row_y_data'])
+    ax.scatter(r['row_x_data'], r['row_y_data'], marker='x', alpha=0.6)
     ax.plot(r['row_x_fit'],r['row_y_fit'])
-    ax.scatter(o['row_x_data'], o['row_y_data'])
+    ax.scatter(o['row_x_data'], o['row_y_data'], alpha=0.6)
     ax.plot(o['row_x_fit'],o['row_y_fit'])
 
     ax = fig.add_subplot(212)
-    ax.scatter(r['col_x_data'], r['col_y_data'])
+    ax.scatter(r['col_x_data'], r['col_y_data'], marker='x', alpha=0.6)
     ax.plot(r['col_x_fit'],r['col_y_fit'])
-    ax.scatter(o['col_x_data'], o['col_y_data'])
+    ax.scatter(o['col_x_data'], o['col_y_data'], alpha=0.6)
     ax.plot(o['col_x_fit'],o['col_y_fit'])
 
     plt.show()

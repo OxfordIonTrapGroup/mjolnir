@@ -84,6 +84,7 @@ class ThorlabsCCD:
         self._get_sensor_info()
         self._get_exposure_params()
         self._get_aoi()
+        self._get_aoi_absolute()
         self.connected = True
 
     def _disconnect(self):
@@ -188,10 +189,10 @@ class ThorlabsCCD:
         is 0 ... self.ccd_width - 1 etc."""
         if kwargs:
             print("binning is not supported")
-        self.aoi_x = self._clip_to_grid(int(vStart), 0, self.ccd_height, 2)
-        self.aoi_y = self._clip_to_grid(int(hStart), 0, self.ccd_width, 4)
-        self.aoi_width = self._clip_to_grid(int(1+vEnd-vStart), 4, self.ccd_height, 2)
-        self.aoi_height = self._clip_to_grid(int(1+hEnd-hStart), 32, self.ccd_width, 4)
+        self.aoi_x = self._clip_to_grid(int(hStart), 0, self.ccd_width, 4)
+        self.aoi_y = self._clip_to_grid(int(vStart), 0, self.ccd_height, 2)
+        self.aoi_width = self._clip_to_grid(int(1+hEnd-hStart), 32, self.ccd_width, 4)
+        self.aoi_height = self._clip_to_grid(int(1+vEnd-vStart), 4, self.ccd_height, 2)
 
         self._set_aoi(self.aoi_x, self.aoi_y, self.aoi_height, self.aoi_width)
         # exposure settings will change
@@ -236,6 +237,23 @@ class ThorlabsCCD:
         self.aoi_y = rectAOI.s32Y & ~uc480.IS_AOI_IMAGE_POS_ABSOLUTE
 
         return self.aoi_x, self.aoi_y, self.aoi_width, self.aoi_height
+
+    def _get_aoi_absolute(self):
+        x_abs = ctypes.c_int32
+        self.c.call("is_AOI", self.c._camID, uc480.IS_AOI_IMAGE_GET_POS_X_ABS,
+            ctypes.pointer(x_abs), ctypes.sizeof(x_abs))
+
+        y_abs = ctypes.c_int32
+        self.c.call("is_AOI", self.c._camID, uc480.IS_AOI_IMAGE_GET_POS_Y_ABS,
+            ctypes.pointer(y_abs), ctypes.sizeof(y_abs))
+
+        if np.all([x_abs, y_abs]):
+            self.aoi_absolute = True
+        elif not np.any([x_abs, y_abs]):
+            self.aoi_absolute = False
+        else:
+            print("either both or neither axis of aoi should be absolute")
+        return self.aoi_absolute
 
     def _crop_to_aoi(self, image):
         """crop the image to the size of the aoi"""

@@ -7,6 +7,8 @@ print("imported", flush=True)
 cam = ThorlabsCCD()
 print("connected!", flush=True)
 
+print(cam.ccd_width, cam.ccd_height)
+
 cam.set_exposure_time(0.01)
 print("set exposure", flush=True)
 

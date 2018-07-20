@@ -109,12 +109,14 @@ class ThorlabsCCD:
                 try:
                     # print("waiting", flush=True)
                     im = timeout(1)(self.c.acquire)(native=True)
+                    im = np.tranpose(im)
+                    # from here on in, the first axis of im is the x axis
                     # print("acquired!", flush=True)
                 except (MyTimeoutError, uc480.uc480Error) as e:
                     self._reconnect()
                 else:
                     im = self._crop_to_aoi(im)
-                    self._frame_buffer.append(im)
+                    self._frame_buffer.append(im.copy(order="C"))
                     for f in self._frame_call_list:
                         f(im)
 
@@ -191,8 +193,10 @@ class ThorlabsCCD:
             print("binning is not supported")
         self.aoi_x = self._clip_to_grid(int(hStart), 0, self.ccd_width, 4)
         self.aoi_y = self._clip_to_grid(int(vStart), 0, self.ccd_height, 2)
-        self.aoi_width = self._clip_to_grid(int(1+hEnd-hStart), 32, self.ccd_width, 4)
-        self.aoi_height = self._clip_to_grid(int(1+vEnd-vStart), 4, self.ccd_height, 2)
+        self.aoi_width = self._clip_to_grid(int(1+hEnd-hStart), 32,
+                                            int(self.ccd_width-hStart), 4)
+        self.aoi_height = self._clip_to_grid(int(1+vEnd-vStart), 4,
+                                             int(self.ccd_height-vStart), 2)
 
         self._set_aoi(self.aoi_x, self.aoi_y, self.aoi_height, self.aoi_width)
         # exposure settings will change
@@ -267,7 +271,7 @@ class ThorlabsCCD:
         y_start = self.aoi_y if self.aoi_absolute else 0
         x_end = self.aoi_width + x_start
         y_end = self.aoi_height + y_start
-        return image[y_start:y_end, x_start:x_end]
+        return image[x_start:x_end, y_start:y_end]
 
     def _get_sensor_info(self):
         # get sensor info

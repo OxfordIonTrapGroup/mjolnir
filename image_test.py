@@ -54,6 +54,13 @@ def calculate_quality(ydata, yfit):
     s = np.sum(ydata)
     return 1. - (rnorm/s)
 
+def gaussian_content(ydata, yfit):
+    """experimental figure of merit"""
+    # actually this isn't great, doesn't penalise elliptical beams
+    total = np.sum(np.multiply(ydata, yfit))
+    norm = np.sum(np.multiply(ydata, ydata))
+    return total/norm
+
 def main():
     # Plot a 3d mesh of the image data
     # and a surface of the fit
@@ -94,8 +101,10 @@ def main():
 
         res = calculate_residuals(ydata, yfit)
         q = calculate_quality(ydata, yfit)
+        gc = gaussian_content(ydata, yfit)
         print("res norm: ", res)
         print("quality: ", q)
+        print("gc: ", gc)
 
     plt.show()
 

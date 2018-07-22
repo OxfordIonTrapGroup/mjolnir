@@ -1,24 +1,23 @@
 import numpy as np
-from scipy.stats import multivariate_normal
+from scipy.stats import multivariate_normal as mv
 import matplotlib.pyplot as plt
 from matplotlib import cm
 from numpy.linalg import eig
 import matplotlib.image as mpimg
 from mpl_toolkits.mplot3d import Axes3D
-from image_tools import twod_fit, fit_image
-from gaussian_beam import gaussian_beam
+from new_image_tools import gaussian_beam
 
 
-def generate_image(m,n):
-    m = 1024
-    n = 1280
-    mean = [400, 500]
+def generate_image():
+    m = 1280
+    n = 1024
+    mean = [600, 500]
     cov = [[100, 100],
            [100, 200]]
 
     # generate image
     # this gives us the location of nclicks
-    nclicks
+    nclicks = 1000
     data = multivariate_normal(mean, cov).rvs(nclicks)
     # make sure all points are within bounds
     # this isn't perfect but so long as not too many points are near
@@ -33,7 +32,7 @@ def generate_image(m,n):
         img[d[0],d[1]] += 1.0/nclicks
 
     # scale it
-    max_ = 225.0
+    max_ = 220.0
     img *= max_/np.maximum(img)
 
     return m, n, img
@@ -47,72 +46,56 @@ def load_image(fname):
     return m, n, img
 
 
+def calculate_residuals(ydata, yfit):
+    return np.sum(np.abs(ydata-yfit))
+
+def calculate_quality(ydata, yfit):
+    rnorm = calculate_residuals(ydata, yfit)
+    s = np.sum(ydata)
+    return 1. - (rnorm/s)
+
 def main():
     # Plot a 3d mesh of the image data
     # and a surface of the fit
     # maybe use this to test eigenvectors as well
     fig = plt.figure()
-    ax = fig.add_subplot(111, projection='3d')
 
-    m, n, image = load_image("focus.bmp")
+    n, m, image = load_image("focus.bmp")
+    image = np.transpose(image)
 
-    x,y = np.mgrid[0:m,0:n]
+    x = np.mgrid[0:m,0:n]
+    pos = np.einsum("i...->...i", x)
 
-    prelim = twod_fit(image)
-    xmean,ymean = np.around(prelim['mean']).astype(int)
-    mask = np.full_like(image, False, dtype=bool)
-    mask[xmean-25:xmean+25, ymean-25:ymean+25] = True
+    methods = [
+        gaussian_beam.naive_fit,
+        # gaussian_beam.two_step_fit,
+        gaussian_beam.two_step_fit_mk2,
+        # gaussian_beam.lsq_fit,
+        gaussian_beam.lsq_cropped
+    ]
+    fits = [meth(x, image) for meth in methods]
+    fit_points = [mv(f['x0'], f['cov']).pdf(pos)*f['scale']+f['offset']
+                  for f in fits]
 
-    doctored = np.copy(image)
-    doctored[~mask] = 0.
-    r = twod_fit(doctored)
-    o = fit_image(image)
+    centx, centy = fits[0]['x0'].astype(int)
+    hr = 25 #halfsize of plot region
+    pos = pos[centx-hr:centx+hr, centy-hr:centy+hr,:]
+    ydata = image[centx-hr:centx+hr, centy-hr:centy+hr]
+    print("sum: ", np.sum(ydata))
 
-    xy = np.mgrid[0:m,0:n]
-    # p = gaussian_beam().fit(xy, image)
+    nplots = len(methods)
+    for i in range(nplots):
+        ax = fig.add_subplot(nplots, 1, i+1, projection='3d')
+        ax.plot_wireframe(pos[:,:,0], pos[:,:,1], ydata)
 
-    # print(r['mean'], p['mean'])
-    # print(r['cov'], p['cov'])
-    # print(r['scale'], p['scale'])
+        yfit = fit_points[i][centx-hr:centx+hr, centy-hr:centy+hr]
+        ax.plot_surface(pos[:,:,0], pos[:,:,1], yfit,
+            cmap=cm.coolwarm, alpha=0.6)
 
-    pos = np.empty((50,50,2))
-
-    pos[:, :, 0] = x[xmean-25:xmean+25, ymean-25:ymean+25]
-    pos[:, :, 1] = y[xmean-25:xmean+25, ymean-25:ymean+25]
-
-    ax.plot_wireframe(pos[:,:,0], pos[:,:,1],
-        image[xmean-25:xmean+25, ymean-25:ymean+25])
-
-    px = x[r['limy'][0]:r['limy'][1], r['limx'][0]:r['limx'][1]]
-    py = y[r['limy'][0]:r['limy'][1], r['limx'][0]:r['limx'][1]]
-    pp = np.empty(x.shape + (2,))
-    pp[:, :, 0] = px
-    pp[:, :, 1] = py
-
-    zoom = r['image_zoom']
-    ll_fit = multivariate_normal.fit()
-
-    rv = multivariate_normal(r['mean'],r['cov'])
-    ax.plot_surface(pos[:,:,0], pos[:,:,1], (rv.pdf(pos)*r['scale'])+r['min'],
-        cmap=cm.coolwarm, alpha=0.6)
-
-    # rv = multivariate_normal(p['mean'],p['cov'])
-    # ax.plot_surface(pos[:,:,0], pos[:,:,1], (rv.pdf(pos)*p['scale'])+p['offset'],
-    #     cmap=cm.plasma, alpha=0.6)
-
-
-    fig = plt.figure()
-    ax = fig.add_subplot(211)
-    ax.scatter(r['row_x_data'], r['row_y_data'], marker='x', alpha=0.6)
-    ax.plot(r['row_x_fit'],r['row_y_fit'])
-    ax.scatter(o['row_x_data'], o['row_y_data'], alpha=0.6)
-    ax.plot(o['row_x_fit'],o['row_y_fit'])
-
-    ax = fig.add_subplot(212)
-    ax.scatter(r['col_x_data'], r['col_y_data'], marker='x', alpha=0.6)
-    ax.plot(r['col_x_fit'],r['col_y_fit'])
-    ax.scatter(o['col_x_data'], o['col_y_data'], alpha=0.6)
-    ax.plot(o['col_x_fit'],o['col_y_fit'])
+        res = calculate_residuals(ydata, yfit)
+        q = calculate_quality(ydata, yfit)
+        print("res norm: ", res)
+        print("quality: ", q)
 
     plt.show()
 

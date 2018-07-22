@@ -50,8 +50,19 @@ def unpack(p):
     return args
 
 
+def check_shape(x, y):
+    # print(x.shape)
+    # print(y.shape)
+    _, m, n = x.shape
+    assert _ == 2
+    assert y.shape == (m, n)
+
+
 def parameter_initialiser(x, y):
+    """naively calculate centroid and covariance of data"""
     # x is like np.mgrid[0:m.0:n]
+    check_shape(x, y)
+
     y0 = np.amin(y)
     a = np.sum(y - y0)
     prob = (y - y0)/a
@@ -94,7 +105,7 @@ def fitting_function(x, x0_0, x0_1, c00, c01, c11, a, y0):
     return _fitting_function(x, p)
 
 
-class gaussian_beam:
+class GaussianBeam:
     def naive_fit(self, xdata, ydata):
         return parameter_initialiser(xdata, ydata)
 
@@ -102,25 +113,46 @@ class gaussian_beam:
         p = parameter_initialiser(xdata, ydata)
         hr = int(region/2)
 
-        ii,jj = np.around(prelim['x0']).astype(int)
+        ii,jj = np.around(p['x0']).astype(int)
         mask = np.full_like(ydata, False, dtype=bool)
         mask[ii-hr:ii+hr, jj-hr:jj+hr] = True
 
         masked = np.copy(ydata)
         masked[~mask] = 0.
-        r = parameter_initialiser(xdata, masked)
-        return r
+        return parameter_initialiser(xdata, masked)
+
+    def two_step_fit_mk2(self, xdata, ydata, region=50):
+        p = parameter_initialiser(xdata, ydata)
+        hr = int(region/2)
+
+        ii,jj = np.around(p['x0']).astype(int)
+        xcrop = xdata[:, ii-hr:ii+hr, jj-hr:jj+hr]
+        ycrop = ydata[ii-hr:ii+hr, jj-hr:jj+hr]
+
+        return parameter_initialiser(xcrop, ycrop)
 
     def lsq_fit(self, xdata, ydata, p0_dict=None, **kwargs):
         if p0_dict is None:
             p0 = unpack(parameter_initialiser(xdata, ydata))
         else:
-            p0 = None
+            p0 = unpack(p0_dict)
 
-        _, m, n = xdata.shape
-        assert _ == 2
-        xdata = xdata.reshape(2, m*n)
-        ydata = ydata.reshape(m*n)     #just flatten
+        check_shape(xdata, ydata)
+        xdata = xdata.reshape(2, -1)
+        ydata = ydata.reshape(-1)     #just flatten
 
         p_fit, p_err = curve_fit(fitting_function, xdata, ydata, p0=p0)
         return pack(p_fit)
+
+    def lsq_cropped(self, xdata, ydata, region=50):
+        p = parameter_initialiser(xdata, ydata)
+        hr = int(region/2)
+
+        ii,jj = np.around(p['x0']).astype(int)
+        xcrop = xdata[:, ii-hr:ii+hr, jj-hr:jj+hr]
+        ycrop = ydata[ii-hr:ii+hr, jj-hr:jj+hr]
+
+        return self.lsq_fit(xcrop, ycrop, p0_dict=p)
+
+
+gaussian_beam = GaussianBeam()

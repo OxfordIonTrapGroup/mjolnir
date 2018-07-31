@@ -154,5 +154,25 @@ class GaussianBeam:
 
         return self.lsq_fit(xcrop, ycrop, p0_dict=p)
 
+    def _get_limits(self, x0, shape, region=50):
+        """returns imin, imax, jmin, jmax"""
+        hr = int(region/2)
+        x0 = np.around(x0).astype(int)
+        lims = np.array([x0-hr, x0+hr])
+        return np.clip(lims, [0,0], np.array(shape)-1).flatten()
+
+    def _crop(self, xdata, ydata, x0, region=50):
+        imin, imax, jmin, jmax = self._get_limits(x0, ydata.shape, region)
+        xcrop = xdata[:, imin:imax, jmin:jmax]
+        ycrop = ydata[imin:imax, jmin:jmax]
+        return xcrop, ycrop
+
+    def _mask(self, ydata, x0, region=50):
+        imin, imax, jmin, jmax = self._get_limits(x0, ydata.shape, region)
+        mask = np.full_like(ydata, False, dtype=bool)
+        mask[imin:imax, jmin:jmax] = True
+        ymasked = np.copy(ydata)
+        ymasked[~mask] = 0.
+        return ymasked
 
 gaussian_beam = GaussianBeam()

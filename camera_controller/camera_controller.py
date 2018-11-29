@@ -142,6 +142,9 @@ class ThorlabsCCD:
             self.register_callback(acquire_single_cb)
         self.acquisition_enabled = True
 
+    def single_acquisition(self):
+        self.start_acquisition(single=True)
+
     def stop_acquisition(self):
         """Turn off auto acquire"""
         self.acquisition_enabled = False
@@ -151,9 +154,13 @@ class ThorlabsCCD:
         self.exposure_min, self.exposure_max, \
             self.exposure_inc = self.c.get_exposure_limits()
 
+    def get_exposure_params(self):
+        self._get_exposure_params()
+        return self.exposure, self.exposure_min, self.exposure_max, self.exposure_inc
+
     def set_exposure_time(self, exposure_time):
         """Set the CCD exposure time in seconds"""
-        time_ms = exposure_time*1000
+        time_ms = exposure_time/1000
         self.set_exposure_ms(time_ms)
 
     def set_exposure_ms(self, exposure_time):

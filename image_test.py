@@ -17,8 +17,8 @@ def generate_image():
 
     # generate image
     # this gives us the location of nclicks
-    nclicks = 1000
-    data = multivariate_normal(mean, cov).rvs(nclicks)
+    nclicks = 10000
+    data = mv(mean, cov).rvs(nclicks)
     # make sure all points are within bounds
     # this isn't perfect but so long as not too many points are near
     # the edge then it's fine
@@ -33,7 +33,7 @@ def generate_image():
 
     # scale it
     max_ = 220.0
-    img *= max_/np.maximum(img)
+    img *= max_/np.amax(img)
 
     return m, n, img
 

@@ -8,12 +8,9 @@ from mpl_toolkits.mplot3d import Axes3D
 from new_image_tools import gaussian_beam
 
 
-def generate_image():
+def generate_image(mean=[600, 500], cov=[[100,50],[50,150]]):
     m = 1280
     n = 1024
-    mean = [600, 500]
-    cov = [[100, 100],
-           [100, 200]]
 
     # generate image
     # this gives us the location of nclicks

@@ -3,13 +3,11 @@ import itertools
 import time
 import atexit
 import zmq
-import zmq.asyncio
 import pyqtgraph as pg
 import numpy as np
 import sys
 import argparse
 from PyQt5 import QtGui, QtWidgets, QtCore
-from threading import Thread
 from quamash import QEventLoop
 
 from artiq.protocols.pc_rpc import Client
@@ -38,16 +36,7 @@ class BeamDisplay(QtWidgets.QMainWindow):
         self.symbols = itertools.cycle(r"\|/-") # unicode didnt work(r"⠇⠋⠙⠸⠴⠦")
 
         self.init_ui()
-
-        # asyncio operation
-        # self._ctx = zmq.asyncio.Context()
-
-        # threaded operation
-        # self._ctx = zmq.Context()
-        # t = Thread(
-        #    target=self._recv_task,
-        #    daemon=True)
-        # t.start()
+        self.show()
 
         # Qt timers (refresh rate is locked)
         qt_update = self.qt_update_factory()
@@ -75,21 +64,6 @@ class BeamDisplay(QtWidgets.QMainWindow):
             else:
                 self.update(im)
         return qt_update
-
-    def _recv_task(self):
-        ctx = zmq.Context()
-        sock = self.zmq_setup(ctx)
-        # shouldn't have a while True in this kind of thread
-        while True:
-            im = sock.recv_pyobj()
-            self.update(im)
-
-    async def recv_and_process(self):
-        ctx = zmq.asyncio.Context()
-        sock = self.zmq_setup(ctx)
-        while True:
-            im = await sock.recv_pyobj()
-            self.update(im)
 
     def update(self, im):
         if self._processing:
@@ -255,14 +229,6 @@ class BeamDisplay(QtWidgets.QMainWindow):
 
         self.layout.addWidget(self.g_layout, stretch=2)
 
-    def start(self):
-        self.show()
-        try:
-            #self.loop.create_task(self.recv_and_process())
-            self.loop.run_forever()
-        finally:
-            self.close()
-
     def _get_exposure_params(self):
         val, min_, max_, step = self.ctl.get_exposure_params()
         self._exposure.setRange(min_, max_)
@@ -294,10 +260,9 @@ def main():
     app = QtWidgets.QApplication(sys.argv)
     loop = QEventLoop(app)
     asyncio.set_event_loop(loop)
-    ctx = zmq.asyncio.Context()
 
     b = BeamDisplay(loop, args.server, args.ctl_port, args.zmq_port)
-    b.start()
+    sys.exit(app.exec_())
 
 
 if __name__ == "__main__":

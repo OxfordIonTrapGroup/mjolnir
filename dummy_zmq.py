@@ -16,7 +16,9 @@ logger = logging.getLogger(__name__)
 
 class Dummy:
     def __init__(self):
-        frames = [generate_image()[2], generate_image()[2]]
+        space = np.linspace(0, 2*np.pi, num=10)
+        means = np.array([200 + 100*np.sin(space), 400 + 200*np.cos(space)])
+        frames = [generate_image(m)[2] for m in means.T]
         self._framegen = itertools.cycle(frames)
         self._frame = None
         self.quit = False
@@ -26,34 +28,29 @@ class Dummy:
         t = Thread(target=self._acquisition_thread, daemon=True)
         t.start()
 
-    def _frame_monitor_thread(self):
-        symbols = itertools.cycle(r"\|/-")
-        while True:
-            # only ever reads the counter!
-            before = self.counter
-            time.sleep(1)
-            after = self.counter
-
-            print("\r{} {} fps".format(next(symbols), after-before),
-                end='', flush=True)
-
-
     def _acquisition_thread(self):
         symbols = itertools.cycle(r"\|/-")
-        lastUpdate = 0
+        last_update = time.time()
+        fps = None
         while self.quit is False:
             if self.acquisition_enabled:
                 im = next(self._framegen)
                 for f in self._frame_call_list:
                     f(im)
                 self._frame = im
+
                 now = time.time()
-                fps = 1.0 / (now - lastUpdate)
-                lastUpdate = now
+                dt = now - last_update
+                last_update = now
+                if fps is None:
+                    fps = 1.0 / dt
+                else:
+                    s = np.clip(dt*3., 0, 1)
+                    fps = fps * (1-s) + (1.0/dt) * s
 
                 print(format("\r{} {:.1f} fps".format(next(symbols), fps), '<16'),
                     end='', flush=True)
-            time.sleep(0.05)
+            time.sleep(0.1)
         self.dead = True
 
     def ping(self):

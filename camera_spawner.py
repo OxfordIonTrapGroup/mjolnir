@@ -5,7 +5,7 @@ from PyQt5 import QtGui, QtWidgets
 
 
 def spawn_camera():
-    subprocess.run([sys.executable,
+    subprocess.Popen([sys.executable,
         "-m", "camera_gui",
         "-s", "10.255.6.127",
         "-p", "4444",

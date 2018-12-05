@@ -121,12 +121,6 @@ class GaussianBeam:
         hr = int(region/2)
 
         masked = cls._mask(xdata, ydata, p['x0'], region=region)
-        # ii,jj = np.around(p['x0']).astype(int)
-        # mask = np.full_like(ydata, False, dtype=bool)
-        # mask[ii-hr:ii+hr, jj-hr:jj+hr] = True
-
-        # masked = np.copy(ydata)
-        # masked[~mask] = 0.
         return parameter_initialiser(xdata, masked)
 
     @classmethod
@@ -134,12 +128,7 @@ class GaussianBeam:
         """Uses MLE first on full data, then on data cropped by initial fit"""
         p = parameter_initialiser(xdata, ydata)
 
-        xcrop, ycrop = cls._crop(xdata, ydata, p['x0'], region=region)
-        # hr = int(region/2)
-        # ii,jj = np.around(p['x0']).astype(int)
-        # xcrop = xdata[:, ii-hr:ii+hr, jj-hr:jj+hr]
-        # ycrop = ydata[ii-hr:ii+hr, jj-hr:jj+hr]
-
+        xcrop, ycrop = cls.crop(xdata, ydata, p['x0'], region=region)
         return parameter_initialiser(xcrop, ycrop)
 
     @classmethod
@@ -162,7 +151,7 @@ class GaussianBeam:
         """Crops data using MLE fit, then uses least squares on result"""
         p = parameter_initialiser(xdata, ydata)
 
-        xcrop, ycrop = cls._crop(xdata, ydata, p['x0'], region=region)
+        xcrop, ycrop = cls.crop(xdata, ydata, p['x0'], region=region)
         # hr = int(region/2)
         # ii,jj = np.around(p['x0']).astype(int)
         # xcrop = xdata[:, ii-hr:ii+hr, jj-hr:jj+hr]
@@ -179,7 +168,7 @@ class GaussianBeam:
         return np.clip(lims, [0,0], np.array(shape)-1).T.flatten()
 
     @classmethod
-    def _crop(cls, xdata, ydata, x0, region=50):
+    def crop(cls, xdata, ydata, x0, region=50):
         imin, imax, jmin, jmax = cls._get_limits(x0, ydata.shape, region)
         xcrop = xdata[:, imin:imax, jmin:jmax]
         ycrop = ydata[imin:imax, jmin:jmax]

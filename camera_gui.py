@@ -21,10 +21,9 @@ that way we can have one subclass with an ARTIQ controller and zmq socket,
 and another that just interfaces the camera directly for local operation
 """
 class BeamDisplay(QtWidgets.QMainWindow):
-    def __init__(self, loop, server, ctl_port, zmq_port):
+    def __init__(self, server, ctl_port, zmq_port):
         super().__init__()
 
-        self.loop = loop
         self.ctl = Client(server, ctl_port)
 
         self._server = server
@@ -243,7 +242,6 @@ class BeamDisplay(QtWidgets.QMainWindow):
         pass
 
     def close(self):
-        self.loop.close()
         self.ctl.close_rpc()
         self.ctl = None
 
@@ -261,7 +259,7 @@ def main():
     loop = QEventLoop(app)
     asyncio.set_event_loop(loop)
 
-    b = BeamDisplay(loop, args.server, args.ctl_port, args.zmq_port)
+    b = BeamDisplay(args.server, args.ctl_port, args.zmq_port)
     sys.exit(app.exec_())
 
 

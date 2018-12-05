@@ -5,6 +5,7 @@ import pyqtgraph as pg
 import numpy as np
 import sys
 import argparse
+import subprocess
 from PyQt5 import QtGui, QtWidgets, QtCore
 from quamash import QEventLoop
 
@@ -216,23 +217,12 @@ def zmq_setup(ctx, server, port):
     return sock
 
 
-def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--server", "-s", type=str, required=True)
-    parser.add_argument("--ctl-port", "-p", type=int, default=4000)
-    parser.add_argument("--zmq-port", "-z", type=int, default=5555)
-
-    args = parser.parse_args()
-
-    app = QtWidgets.QApplication(sys.argv)
-    loop = QEventLoop(app)
-    asyncio.set_event_loop(loop)
-
+def remote(server, ctl_port, zmq_port):
     ### Remote operation ###
-    camera = Client(args.server, args.ctl_port)
+    camera = Client(server, ctl_port)
     b = BeamDisplay(camera)
     ctx = zmq.Context()
-    sock = zmq_setup(ctx, args.server, args.zmq_port)
+    sock = zmq_setup(ctx, server, zmq_port)
 
     def qt_update():
         try:
@@ -246,12 +236,30 @@ def main():
     timer.timeout.connect(qt_update)
     timer.start(50) # timeout ms
 
+
+def local():
     ### Local operation ###
-    # camera = Dummy()
-    # b = BeamDisplay(camera)
-    # camera.register_callback(lambda im: b.update(im))
+    camera = Dummy()
+    b = BeamDisplay(camera)
+    camera.register_callback(lambda im: b.update(im))
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--server", "-s", type=str, required=True)
+    parser.add_argument("--ctl-port", "-p", type=int, default=4000)
+    parser.add_argument("--zmq-port", "-z", type=int, default=5555)
+
+    args = parser.parse_args()
+
+    app = QtWidgets.QApplication(sys.argv)
+    loop = QEventLoop(app)
+    asyncio.set_event_loop(loop)
+
+    remote(args.server, args.ctl_port, args.zmq_port)
 
     sys.exit(app.exec_())
+
 
 
 if __name__ == "__main__":

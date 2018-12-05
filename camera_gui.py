@@ -22,8 +22,10 @@ Should abstract away the camera device and zmq reception:
 that way we can have one subclass with an ARTIQ controller and zmq socket,
 and another that just interfaces the camera directly for local operation
 """
-class BeamDisplay:
+class BeamDisplay(QtWidgets.QMainWindow):
     def __init__(self, loop, server, ctl_port, zmq_port):
+        super().__init__()
+
         self.loop = loop
         self.ctl = Client(server, ctl_port)
 
@@ -49,7 +51,7 @@ class BeamDisplay:
 
         # Qt timers (refresh rate is locked)
         qt_update = self.qt_update_factory()
-        timer = QtCore.QTimer(self.win)
+        timer = QtCore.QTimer(self)
         timer.timeout.connect(qt_update)
         timer.start(50) # timeout ms
 
@@ -151,13 +153,12 @@ class BeamDisplay:
         self._processing = False
 
     def init_ui(self):
-        self.win = QtWidgets.QMainWindow()
-        self.widget = QtWidgets.QWidget(self.win)
-        self.layout = QtWidgets.QHBoxLayout(self.win)
+        self.widget = QtWidgets.QWidget(self)
+        self.layout = QtWidgets.QHBoxLayout(self)
 
         # control panel
-        self.info_pane = QtWidgets.QWidget(self.win)
-        self.info_pane_layout = QtWidgets.QVBoxLayout(self.win)
+        self.info_pane = QtWidgets.QWidget(self)
+        self.info_pane_layout = QtWidgets.QVBoxLayout(self)
 
         self._single = QtGui.QPushButton("Single Acquisition")
         self._start = QtGui.QPushButton("Start Acquisition")
@@ -184,8 +185,8 @@ class BeamDisplay:
         # general
         self.layout.addWidget(self.info_pane)
         self.widget.setLayout(self.layout)
-        self.win.setCentralWidget(self.widget)
-        self.win.setGeometry(300, 300, 900, 600)
+        self.setCentralWidget(self.widget)
+        self.setGeometry(300, 300, 900, 600)
 
 
     def init_graphics(self):
@@ -255,7 +256,7 @@ class BeamDisplay:
         self.layout.addWidget(self.g_layout, stretch=2)
 
     def start(self):
-        self.win.show()
+        self.show()
         try:
             #self.loop.create_task(self.recv_and_process())
             self.loop.run_forever()

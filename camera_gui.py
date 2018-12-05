@@ -13,16 +13,12 @@ from new_image_tools import GaussianBeam
 
 from dummy_zmq import Dummy
 
-"""
-Should abstract away the camera device and zmq reception:
-that way we can have one subclass with an ARTIQ controller and zmq socket,
-and another that just interfaces the camera directly for local operation
-"""
+
 class BeamDisplay(QtWidgets.QMainWindow):
     def __init__(self, camera):
         super().__init__()
 
-        self.ctl = camera
+        self.cam = camera
 
         self._processing = False
         self.fps = None
@@ -104,9 +100,9 @@ class BeamDisplay(QtWidgets.QMainWindow):
         self._single = QtGui.QPushButton("Single Acquisition")
         self._start = QtGui.QPushButton("Start Acquisition")
         self._stop = QtGui.QPushButton("Stop Acquisition")
-        self._single.clicked.connect(lambda: self.ctl.single_acquisition())
-        self._start.clicked.connect(lambda: self.ctl.start_acquisition())
-        self._stop.clicked.connect(lambda: self.ctl.stop_acquisition())
+        self._single.clicked.connect(lambda: self.cam.single_acquisition())
+        self._start.clicked.connect(lambda: self.cam.start_acquisition())
+        self._stop.clicked.connect(lambda: self.cam.stop_acquisition())
 
         self._exposure = QtGui.QDoubleSpinBox()
         self._exposure.setSuffix(" ms")
@@ -197,14 +193,14 @@ class BeamDisplay(QtWidgets.QMainWindow):
         self.layout.addWidget(self.g_layout, stretch=2)
 
     def _get_exposure_params(self):
-        val, min_, max_, step = self.ctl.get_exposure_params()
+        val, min_, max_, step = self.cam.get_exposure_params()
         self._exposure.setRange(min_, max_)
         self._exposure.setSingleStep(step)
         self._exposure.setValue(val)
 
     def _exposure_cb(self):
         exp = self._exposure.value()
-        self.ctl.set_exposure_ms(exp)
+        self.cam.set_exposure_ms(exp)
 
     def _aoi_cb(self):
         pass

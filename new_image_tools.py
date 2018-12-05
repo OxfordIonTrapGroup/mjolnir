@@ -60,7 +60,7 @@ def check_shape(x, y):
 
 def parameter_initialiser(x, y):
     """naively calculate centroid and covariance of data"""
-    # x is like np.mgrid[0:m.0:n]
+    # x is like np.mgrid[0:m,0:n]
     check_shape(x, y)
 
     y0 = np.amin(y)

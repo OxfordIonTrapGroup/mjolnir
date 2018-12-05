@@ -42,8 +42,10 @@ class Dummy:
                 now = time.time()
                 dt = now - last_update
                 last_update = now
-                if fps is None:
+                if fps is None and dt != 0:
                     fps = 1.0 / dt
+                elif fps is None:
+                    fps = 0.
                 else:
                     s = np.clip(dt*3., 0, 1)
                     fps = fps * (1-s) + (1.0/dt) * s

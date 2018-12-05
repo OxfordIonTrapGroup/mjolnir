@@ -1,7 +1,5 @@
 import asyncio
 import itertools
-import time
-import atexit
 import zmq
 import pyqtgraph as pg
 import numpy as np

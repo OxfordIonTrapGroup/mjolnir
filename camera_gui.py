@@ -11,7 +11,7 @@ from quamash import QEventLoop
 from artiq.protocols.pc_rpc import Client
 from new_image_tools import GaussianBeam
 
-
+from dummy_zmq import Dummy
 
 """
 Should abstract away the camera device and zmq reception:
@@ -19,14 +19,11 @@ that way we can have one subclass with an ARTIQ controller and zmq socket,
 and another that just interfaces the camera directly for local operation
 """
 class BeamDisplay(QtWidgets.QMainWindow):
-    def __init__(self, server, ctl_port, zmq_port):
+    def __init__(self, camera):
         super().__init__()
 
-        self.ctl = Client(server, ctl_port)
+        self.ctl = camera
 
-        self._server = server
-        self._ctl_port = ctl_port
-        self._zmq_port = zmq_port
         self._processing = False
         self.fps = None
         self.last_update = pg.ptime.time()
@@ -34,33 +31,6 @@ class BeamDisplay(QtWidgets.QMainWindow):
 
         self.init_ui()
         self.show()
-
-        # Qt timers (refresh rate is locked)
-        qt_update = self.qt_update_factory()
-        timer = QtCore.QTimer(self)
-        timer.timeout.connect(qt_update)
-        timer.start(50) # timeout ms
-
-    def zmq_setup(self, ctx):
-        sock = ctx.socket(zmq.SUB)
-        sock.set_hwm(1)
-        sock.connect("tcp://{}:{}".format(self._server, self._zmq_port))
-        sock.setsockopt_string(zmq.SUBSCRIBE, '')
-        sock.setsockopt(zmq.CONFLATE, 1)
-        return sock
-
-    def qt_update_factory(self):
-        ctx = zmq.Context()
-        sock = self.zmq_setup(ctx)
-        sock.setsockopt(zmq.RCVTIMEO, 1)
-        def qt_update():
-            try:
-                im = sock.recv_pyobj()
-            except zmq.error.Again as e:
-                pass
-            else:
-                self.update(im)
-        return qt_update
 
     def update(self, im):
         if self._processing:
@@ -239,9 +209,15 @@ class BeamDisplay(QtWidgets.QMainWindow):
     def _aoi_cb(self):
         pass
 
-    def close(self):
-        self.ctl.close_rpc()
-        self.ctl = None
+
+def zmq_setup(ctx, server, port):
+    sock = ctx.socket(zmq.SUB)
+    sock.set_hwm(1)
+    sock.connect("tcp://{}:{}".format(server, port))
+    sock.setsockopt_string(zmq.SUBSCRIBE, '')
+    sock.setsockopt(zmq.CONFLATE, 1)
+    sock.setsockopt(zmq.RCVTIMEO, 1)
+    return sock
 
 
 def main():
@@ -252,12 +228,33 @@ def main():
 
     args = parser.parse_args()
 
-    global app
     app = QtWidgets.QApplication(sys.argv)
     loop = QEventLoop(app)
     asyncio.set_event_loop(loop)
 
-    b = BeamDisplay(args.server, args.ctl_port, args.zmq_port)
+    ### Remote operation ###
+    camera = Client(args.server, args.ctl_port)
+    b = BeamDisplay(camera)
+    ctx = zmq.Context()
+    sock = zmq_setup(ctx, args.server, args.zmq_port)
+
+    def qt_update():
+        try:
+            im = sock.recv_pyobj()
+        except zmq.error.Again as e:
+            pass
+        else:
+            b.update(im)
+
+    timer = QtCore.QTimer(b)
+    timer.timeout.connect(qt_update)
+    timer.start(50) # timeout ms
+
+    ### Local operation ###
+    # camera = Dummy()
+    # b = BeamDisplay(camera)
+    # camera.register_callback(lambda im: b.update(im))
+
     sys.exit(app.exec_())
 
 

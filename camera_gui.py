@@ -30,30 +30,66 @@ class BeamDisplay:
         self._server = server
         self._ctl_port = ctl_port
         self._zmq_port = zmq_port
-        self._ctx = zmq.Context()
         self._processing = False
         self.fps = None
         self.last_update = pg.ptime.time()
         self.symbols = itertools.cycle(r"\|/-") # unicode didnt work(r"⠇⠋⠙⠸⠴⠦")
 
         self.init_ui()
-        t = Thread(
-            target=self._recv_task,
-            args=[self._ctx, self._server, self._zmq_port],
-            daemon=True)
-        t.start()
 
-    def _recv_task(self, ctx, server, port):
-        sock = self._ctx.socket(zmq.SUB)
+        # asyncio operation
+        # self._ctx = zmq.asyncio.Context()
+
+        # threaded operation
+        # self._ctx = zmq.Context()
+        # t = Thread(
+        #    target=self._recv_task,
+        #    daemon=True)
+        # t.start()
+
+        # Qt timers (refresh rate is locked)
+        qt_update = self.qt_update_factory()
+        timer = QtCore.QTimer(self.win)
+        timer.timeout.connect(qt_update)
+        timer.start(50) # timeout ms
+
+    def zmq_setup(self, ctx):
+        sock = ctx.socket(zmq.SUB)
         sock.set_hwm(1)
-        sock.connect("tcp://{}:{}".format(server, port))
+        sock.connect("tcp://{}:{}".format(self._server, self._zmq_port))
         sock.setsockopt_string(zmq.SUBSCRIBE, '')
         sock.setsockopt(zmq.CONFLATE, 1)
+        return sock
+
+    def qt_update_factory(self):
+        ctx = zmq.Context()
+        sock = self.zmq_setup(ctx)
+        sock.setsockopt(zmq.RCVTIMEO, 1)
+        def qt_update():
+            try:
+                im = sock.recv_pyobj()
+            except zmq.error.Again as e:
+                pass
+            else:
+                self.update(im)
+        return qt_update
+
+    def _recv_task(self):
+        ctx = zmq.Context()
+        sock = self.zmq_setup(ctx)
+        # shouldn't have a while True in this kind of thread
         while True:
             im = sock.recv_pyobj()
-            self._process_task(im)
+            self.update(im)
 
-    def _process_task(self, im):
+    async def recv_and_process(self):
+        ctx = zmq.asyncio.Context()
+        sock = self.zmq_setup(ctx)
+        while True:
+            im = await sock.recv_pyobj()
+            self.update(im)
+
+    def update(self, im):
         if self._processing:
             return
         self._processing = True
@@ -111,7 +147,7 @@ class BeamDisplay:
         print(format("\r{} {:.1f} fps".format(next(self.symbols), self.fps), '<16'),
             end='', flush=True)
 
-        app.processEvents()
+        # QApplication.processEvents()
         self._processing = False
 
     def init_ui(self):
@@ -221,7 +257,7 @@ class BeamDisplay:
     def start(self):
         self.win.show()
         try:
-            # self.loop.create_task(self.recv_and_process())
+            #self.loop.create_task(self.recv_and_process())
             self.loop.run_forever()
         finally:
             self.close()

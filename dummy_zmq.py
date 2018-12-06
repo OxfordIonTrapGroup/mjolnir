@@ -16,9 +16,9 @@ logger = logging.getLogger(__name__)
 
 class Dummy:
     def __init__(self):
-        space = np.linspace(0, 2*np.pi, num=10)
-        means = np.array([200 + 100*np.sin(space), 400 + 200*np.cos(space)])
-        frames = [generate_image(m)[2] for m in means.T]
+        space = np.linspace(0, 2*np.pi, num=10, endpoint=False)
+        centroids = np.array([200 + 100*np.sin(space), 400 + 200*np.cos(space)])
+        frames = [generate_image(c) for c in centroids.T]
         self._framegen = itertools.cycle(frames)
         self._frame = None
         self.quit = False

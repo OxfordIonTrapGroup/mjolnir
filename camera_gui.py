@@ -278,6 +278,9 @@ class BeamDisplay(QtWidgets.QMainWindow):
         self.g_layout.ci.layout.setColumnStretchFactor(0, 2)
         self.g_layout.ci.layout.setColumnStretchFactor(1, 1)
 
+    def add_tooltips(self):
+        #TODO
+        pass
 
 
 def zmq_setup(ctx, server, port):

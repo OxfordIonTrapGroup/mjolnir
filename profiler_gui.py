@@ -9,7 +9,7 @@ from PyQt5 import QtWidgets
 import sys
 import traceback
 import numpy as np
-import png
+# import png
 import datetime
 import image_tools
 
@@ -28,8 +28,8 @@ class ProfilerGUI(QtWidgets.QMainWindow):
         self.setWindowTitle("Profiler GUI")
         self.fit_results = {}
 
-        self.camera = camera_controller.start()
-        self.camera.start_acquisition()
+        # self.camera = camera_controller.start()
+        # self.camera.start_acquisition()
 
         self.update_timer = QtCore.QTimer(self)
         self.update_timer.timeout.connect(self.update)
@@ -186,6 +186,9 @@ class ProfilerGUI(QtWidgets.QMainWindow):
 
 
     def update(self):
+        # hack for dummy
+        if not hasattr(self, "camera"):
+            return
 
         if self.camera.connected:
             self.connection_box.setChecked(True)

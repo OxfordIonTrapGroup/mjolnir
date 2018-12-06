@@ -8,31 +8,26 @@ from mpl_toolkits.mplot3d import Axes3D
 from new_image_tools import gaussian_beam
 
 
-def generate_image(mean=[600, 500], cov=[[100,50],[50,150]]):
-    m = 1280
-    n = 1024
+def generate_image(
+        centroid=[200, 200],
+        cov=[[50,0],[0,80]],
+        intensity=220,
+        noise=None,
+        m=1280,
+        n=1024):
 
-    # generate image
-    # this gives us the location of nclicks
-    nclicks = 10000
-    data = mv(mean, cov).rvs(nclicks)
-    # make sure all points are within bounds
-    # this isn't perfect but so long as not too many points are near
-    # the edge then it's fine
-    np.clip(data, [0,0], [m-1,n-1])
-    data = np.round(data)
-    data = data.astype(int)
-
-    # sum to get image data
-    img = np.zeros([m,n],dtype=float)
-    for d in data:
-        img[d[0],d[1]] += 1.0/nclicks
+    pxmap = np.mgrid[0:m,0:n]
+    pxmap = np.einsum("i...->...i", pxmap)
+    img = mv(centroid, cov).pdf(pxmap)
 
     # scale it
-    max_ = 220.0
-    img *= max_/np.amax(img)
+    img *= intensity/np.amax(img)
 
-    return m, n, img.astype(int)
+    # TODO: add noise
+    if noise is not None:
+        pass
+
+    return img.astype(int)
 
 
 

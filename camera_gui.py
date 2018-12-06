@@ -106,6 +106,19 @@ class BeamDisplay(QtWidgets.QMainWindow):
         # QApplication.processEvents()
         self._processing = False
 
+    def _get_exposure_params(self):
+        val, min_, max_, step = self.cam.get_exposure_params()
+        self._exposure.setRange(min_, max_)
+        self._exposure.setSingleStep(step)
+        self._exposure.setValue(val)
+
+    def _exposure_cb(self):
+        exp = self._exposure.value()
+        self.cam.set_exposure_ms(exp)
+
+    def _aoi_cb(self):
+        pass
+
     def update_LUT(self, scale):
         # have to loop twice to avoid reordering
         ticks = self.gradient.listTicks()
@@ -265,19 +278,6 @@ class BeamDisplay(QtWidgets.QMainWindow):
         self.g_layout.ci.layout.setColumnStretchFactor(0, 2)
         self.g_layout.ci.layout.setColumnStretchFactor(1, 1)
 
-
-    def _get_exposure_params(self):
-        val, min_, max_, step = self.cam.get_exposure_params()
-        self._exposure.setRange(min_, max_)
-        self._exposure.setSingleStep(step)
-        self._exposure.setValue(val)
-
-    def _exposure_cb(self):
-        exp = self._exposure.value()
-        self.cam.set_exposure_ms(exp)
-
-    def _aoi_cb(self):
-        pass
 
 
 def zmq_setup(ctx, server, port):

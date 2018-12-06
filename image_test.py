@@ -32,7 +32,7 @@ def generate_image(mean=[600, 500], cov=[[100,50],[50,150]]):
     max_ = 220.0
     img *= max_/np.amax(img)
 
-    return m, n, img
+    return m, n, img.astype(int)
 
 
 

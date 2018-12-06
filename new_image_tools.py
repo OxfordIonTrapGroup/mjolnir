@@ -111,17 +111,8 @@ class GaussianBeam:
         return _fitting_function(xdata, p)
 
     @classmethod
-    def naive_fit(cls, xdata, ydata):
+    def one_step_MLE(cls, xdata, ydata):
         return parameter_initialiser(xdata, ydata)
-
-    @classmethod
-    def two_step_MLE_mask(cls, xdata, ydata, region=50):
-        """Uses MLE first on full data, then on data masked by initial fit"""
-        p = parameter_initialiser(xdata, ydata)
-        hr = int(region/2)
-
-        masked = cls._mask(xdata, ydata, p['x0'], region=region)
-        return parameter_initialiser(xdata, masked)
 
     @classmethod
     def two_step_MLE(cls, xdata, ydata, region=50):
@@ -152,11 +143,6 @@ class GaussianBeam:
         p = parameter_initialiser(xdata, ydata)
 
         xcrop, ycrop = cls.crop(xdata, ydata, p['x0'], region=region)
-        # hr = int(region/2)
-        # ii,jj = np.around(p['x0']).astype(int)
-        # xcrop = xdata[:, ii-hr:ii+hr, jj-hr:jj+hr]
-        # ycrop = ydata[ii-hr:ii+hr, jj-hr:jj+hr]
-
         return self.lsq_fit(xcrop, ycrop, p0_dict=p)
 
     @classmethod
@@ -175,12 +161,38 @@ class GaussianBeam:
         return xcrop, ycrop
 
     @classmethod
-    def _mask(cls, ydata, x0, region=50):
+    def mask(cls, ydata, x0, region=50):
         imin, imax, jmin, jmax = cls._get_limits(x0, ydata.shape, region)
         mask = np.full_like(ydata, False, dtype=bool)
         mask[imin:imax, jmin:jmax] = True
         ymasked = np.copy(ydata)
         ymasked[~mask] = 0.
         return ymasked
+
+    @classmethod
+    def covariance_to_gaussian_params(cls, cov):
+        """Return a human-friendly dictionary containing beam parameters"""
+        params = {}
+        params['x_width'], params["y_width"] = cls.variance_to_e_squared(
+            np.diag(cov))
+
+        # Find eigenvectors/eigenvalues for general ellipse
+        w, v = np.linalg.eig(cov)
+        maj = np.argmax(w)
+        min_ = maj - 1     # trick: we can always index with -1 or 0
+        params['maj_angle'] = np.rad2deg(np.arctan2(v[1, maj], v[0, maj]))
+        params['min_angle'] = np.rad2deg(np.arctan2(v[1, min_], v[0, min_]))
+        params['maj_width'] = cls.variance_to_e_squared(w[maj])
+        params['min_width'] = cls.variance_to_e_squared(w[min_])
+
+        # Ellipticity
+        params['e'] = 1 - (params['min_width'] / params['maj_width'])
+
+        return params
+
+    @classmethod
+    def variance_to_e_squared(cls, var):
+        """Convert variance to 1/e^2 radius"""
+        return 2*np.sqrt(var)
 
 gaussian_beam = GaussianBeam()

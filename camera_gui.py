@@ -24,6 +24,7 @@ class BeamDisplay(QtWidgets.QMainWindow):
         # Pixel width in microns (get from camera?)
         self._px_width = 5.2
 
+        self._region = 50
         self._processing = False
         self._fps = None
         self._last_update = pg.ptime.time()
@@ -39,11 +40,10 @@ class BeamDisplay(QtWidgets.QMainWindow):
         self.image.setImage(im, autoRange=False, autoLevels=False)
 
         if True:
-            region = 50
             m, n = im.shape
             pxmap = np.mgrid[0:m,0:n]
-            p = GaussianBeam.two_step_MLE(pxmap, im)
-            pxcrop, im_crop = GaussianBeam.crop(pxmap, im, p['x0'], region)
+            p = GaussianBeam.two_step_MLE(pxmap, im, self._region)
+            pxcrop, im_crop = GaussianBeam.crop(pxmap, im, p['x0'], self._region)
             self.zoom.setImage(im_crop, autoRange=False, autoLevels=False)
 
             im_fit = GaussianBeam.f(pxcrop, p)

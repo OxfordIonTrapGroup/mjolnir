@@ -51,7 +51,7 @@ class BeamDisplay(QtWidgets.QMainWindow):
 
             # currently residuals is on [-255.,255.] and also is float
             # need ints on [0,255]
-            im_res = 127 + (im_residuals / 2)
+            im_res = 128 + (im_residuals / 2)
             im_res = np.clip(im_res, 0, 255).astype(int)
             self.residuals.setImage(im_res,
                 autoRange=False, autoLevels=False, lut=self.residual_LUT)
@@ -68,13 +68,11 @@ class BeamDisplay(QtWidgets.QMainWindow):
             self.fit_v_line.setValue(p['x0'][0])
             self.fit_h_line.setValue(p['x0'][1])
 
-            params = GaussianBeam.covariance_to_gaussian_params(p['cov'])
-
             centre = QtCore.QPointF(*(p['x0']-pxcrop[:,0,0]))
             self.fit_maj_line.setValue(centre)
             self.fit_maj_line.setValue(centre)
-            self.fit_maj_line.setAngle(params['maj_angle'])
-            self.fit_min_line.setAngle(params['min_angle'])
+            self.fit_maj_line.setAngle(p['semimaj_angle'])
+            self.fit_min_line.setAngle(p['semimin_angle'])
 
             self.isocurve.setLevel(np.amax(im_fit) / np.exp(2))
             self.isocurve.setData(im_fit)
@@ -82,13 +80,13 @@ class BeamDisplay(QtWidgets.QMainWindow):
             def px_string(px):
                 return "{:.1f}μm ({:.1f}px)".format(px*self._px_width, px)
 
-            self.maj_width.setText(px_string(params['maj_width']))
-            self.min_width.setText(px_string(params['min_width']))
-            self.x_width.setText(px_string(params['x_width']))
-            self.y_width.setText(px_string(params['y_width']))
+            self.maj_radius.setText(px_string(p['semimaj']))
+            self.min_radius.setText(px_string(p['semimin']))
+            self.x_radius.setText(px_string(p['x_radius']))
+            self.y_radius.setText(px_string(p['y_radius']))
             self.x_centroid.setText(px_string(p['x0'][0]))
             self.y_centroid.setText(px_string(p['x0'][1]))
-            self.ellipticity.setText("{:.3f}".format(params['e']))
+            self.ellipticity.setText("{:.3f}".format(p['e']))
             self.residual_max.setText("{:.1f}".format(np.amax(np.abs(im_residuals))))
 
 
@@ -120,7 +118,6 @@ class BeamDisplay(QtWidgets.QMainWindow):
         pass
 
     def update_LUT(self, scale):
-        # have to loop twice to avoid reordering
         ticks = self.gradient.listTicks()
         for i in range(5):
             if i == 2:
@@ -156,11 +153,12 @@ class BeamDisplay(QtWidgets.QMainWindow):
         # connect after finding params so we don't send accidental update
         self._exposure.valueChanged.connect(self._exposure_cb)
 
-        self.maj_width = QtGui.QLabel()
-        self.min_width = QtGui.QLabel()
+        self.maj_radius = QtGui.QLabel()
+        self.min_radius = QtGui.QLabel()
+        self.avg_radius = QtGui.QLabel()
         self.ellipticity = QtGui.QLabel()
-        self.x_width = QtGui.QLabel()
-        self.y_width = QtGui.QLabel()
+        self.x_radius = QtGui.QLabel()
+        self.y_radius = QtGui.QLabel()
         self.x_centroid = QtGui.QLabel()
         self.y_centroid = QtGui.QLabel()
 
@@ -186,12 +184,13 @@ class BeamDisplay(QtWidgets.QMainWindow):
         self.param_layout.addRow(QtGui.QLabel("Beam Parameters"))
         self.param_layout.addRow(QtGui.QLabel("(all widths are 1/e^2)"))
         self.param_layout.addRow(QtGui.QWidget())
-        self.param_layout.addRow("Semi-major axis:", self.maj_width)
-        self.param_layout.addRow("Semi-minor axis:", self.min_width)
+        self.param_layout.addRow("Semi-major radius:", self.maj_radius)
+        self.param_layout.addRow("Semi-minor radius:", self.min_radius)
+        self.param_layout.addRow("Average radius:", self.avg_radius)
         self.param_layout.addRow("Ellipticity:", self.ellipticity)
         self.param_layout.addRow(QtGui.QWidget())
-        self.param_layout.addRow("X axis:", self.x_width)
-        self.param_layout.addRow("Y axis:", self.y_width)
+        self.param_layout.addRow("X radius:", self.x_radius)
+        self.param_layout.addRow("Y radius:", self.y_radius)
         self.param_layout.addRow(QtGui.QWidget())
         self.param_layout.addRow("X position:", self.x_centroid)
         self.param_layout.addRow("Y position:", self.y_centroid)

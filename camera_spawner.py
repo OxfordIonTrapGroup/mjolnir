@@ -19,7 +19,7 @@ class ConnectionDialog(QtWidgets.QDialog):
         self.init_ui()
 
     def init_local_connection(self):
-        print("called local", flush=True)
+        local()
 
     def init_remote_connection(self):
         server = self.ip_address.text()

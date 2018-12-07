@@ -112,7 +112,9 @@ class GaussianBeam:
 
     @classmethod
     def one_step_MLE(cls, xdata, ydata):
-        return parameter_initialiser(xdata, ydata)
+        p = parameter_initialiser(xdata, ydata)
+        p.update(cls.compute_derived_properties(p))
+        return p
 
     @classmethod
     def two_step_MLE(cls, xdata, ydata, region=50):
@@ -120,7 +122,10 @@ class GaussianBeam:
         p = parameter_initialiser(xdata, ydata)
 
         xcrop, ycrop = cls.crop(xdata, ydata, p['x0'], region=region)
-        return parameter_initialiser(xcrop, ycrop)
+        p = parameter_initialiser(xcrop, ycrop)
+        p.update(cls.compute_derived_properties(p))
+        return p
+
 
     @classmethod
     def lsq_fit(cls, xdata, ydata, p0_dict=None, **kwargs):
@@ -135,7 +140,9 @@ class GaussianBeam:
         ydata = ydata.reshape(-1)     #just flatten
 
         p_fit, p_err = curve_fit(fitting_function, xdata, ydata, p0=p0)
-        return pack(p_fit)
+        p = pack(p_fit)
+        p.update(cls.compute_derived_properties(p))
+        return p
 
     @classmethod
     def lsq_cropped(cls, xdata, ydata, region=50):
@@ -170,23 +177,24 @@ class GaussianBeam:
         return ymasked
 
     @classmethod
-    def covariance_to_gaussian_params(cls, cov):
-        """Return a human-friendly dictionary containing beam parameters"""
+    def compute_derived_properties(cls, p):
+        cov = p['cov']
+
         params = {}
-        params['x_width'], params["y_width"] = cls.variance_to_e_squared(
+        params['x_radius'], params["y_radius"] = cls.variance_to_e_squared(
             np.diag(cov))
 
         # Find eigenvectors/eigenvalues for general ellipse
         w, v = np.linalg.eig(cov)
         maj = np.argmax(w)
         min_ = maj - 1     # trick: we can always index with -1 or 0
-        params['maj_angle'] = np.rad2deg(np.arctan2(v[1, maj], v[0, maj]))
-        params['min_angle'] = np.rad2deg(np.arctan2(v[1, min_], v[0, min_]))
-        params['maj_width'] = cls.variance_to_e_squared(w[maj])
-        params['min_width'] = cls.variance_to_e_squared(w[min_])
+        params['semimaj_angle'] = np.rad2deg(np.arctan2(v[1, maj], v[0, maj]))
+        params['semimin_angle'] = np.rad2deg(np.arctan2(v[1, min_], v[0, min_]))
+        params['semimaj'] = cls.variance_to_e_squared(w[maj])
+        params['semimin'] = cls.variance_to_e_squared(w[min_])
 
         # Ellipticity
-        params['e'] = 1 - (params['min_width'] / params['maj_width'])
+        params['e'] = 1 - (params['semimin'] / params['semimaj'])
 
         return params
 

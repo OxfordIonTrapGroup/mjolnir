@@ -59,15 +59,24 @@ class BeamDisplay(QtWidgets.QMainWindow):
             # just in case max pixel is not exactly centred
             px_x0 = np.unravel_index(np.argmax(im_fit), im_fit.shape)
             # x slice is horizontal
-            self.x_slice.setData(im_crop[:,px_x0[1]], pxcrop[0,:,0])
-            self.x_fit.setData(im_fit[:,px_x0[1]], pxcrop[0,:,0])
+            # self.x_slice.setData(im_crop[:,px_x0[1]], pxcrop[0,:,0])
+            # self.x_fit.setData(im_fit[:,px_x0[1]], pxcrop[0,:,0])
+            # self.y_slice.setData(im_crop[px_x0[0],:], pxcrop[1,0,:])
+            # self.y_fit.setData(im_fit[px_x0[0],:], pxcrop[1,0,:])
 
-            self.y_slice.setData(im_crop[px_x0[0],:], pxcrop[1,0,:])
-            self.y_fit.setData(im_fit[px_x0[0],:], pxcrop[1,0,:])
+            px_x0 += pxcrop[:,0,0]
+            x_fit = GaussianBeam.f(pxmap[:,:,px_x0[1]],p)
+            self.x_slice.setData(pxmap[0,:,0], im[:,px_x0[1]])
+            self.x_fit.setData(pxmap[0,:,0], x_fit)
+
+            y_fit = GaussianBeam.f(pxmap[:,px_x0[0],:],p)
+            self.y_slice.setData(im[px_x0[0],:], pxmap[1,0,:])
+            self.y_fit.setData(y_fit, pxmap[1,0,:])
 
             self.fit_v_line.setValue(p['x0'][0])
             self.fit_h_line.setValue(p['x0'][1])
 
+            # I think sub-pixel position is allowed?
             centre = QtCore.QPointF(*(p['x0']-pxcrop[:,0,0]))
             self.fit_maj_line.setValue(centre)
             self.fit_maj_line.setValue(centre)
@@ -137,7 +146,7 @@ class BeamDisplay(QtWidgets.QMainWindow):
         self.layout.addWidget(self.info_pane)
         self.widget.setLayout(self.layout)
         self.setCentralWidget(self.widget)
-        self.setGeometry(300, 300, 900, 600)
+        self.setGeometry(300, 300, 1500, 600)
 
     def init_info_pane(self):
         self._single = QtGui.QPushButton("Single Acquisition")
@@ -231,11 +240,11 @@ class BeamDisplay(QtWidgets.QMainWindow):
         self.g_layout = pg.GraphicsLayoutWidget(border=(80, 80, 80))
 
         options = {"lockAspect":True, "invertY":True}
-        self.vb_image = self.g_layout.addViewBox(row=0, col=0, rowspan=4, **options)
-        self.vb_zoom = self.g_layout.addViewBox(row=0, col=1, **options)
-        self.vb_residuals = self.g_layout.addViewBox(row=1, col=1, **options)
-        self.vb_x = self.g_layout.addViewBox(row=2, col=1)
-        self.vb_y = self.g_layout.addViewBox(row=3, col=1)
+        self.vb_image = self.g_layout.addViewBox(row=0, col=0, rowspan=2, **options)
+        self.vb_x = self.g_layout.addViewBox(row=2, col=0)
+        self.vb_y = self.g_layout.addViewBox(row=0, col=1, rowspan=2)
+        self.vb_zoom = self.g_layout.addViewBox(row=0, col=2, **options)
+        self.vb_residuals = self.g_layout.addViewBox(row=1, col=2, **options)
 
         color = pg.mkColor(40,40,40)
         self.vb_image.setBackgroundColor(color)
@@ -257,6 +266,11 @@ class BeamDisplay(QtWidgets.QMainWindow):
         self.vb_image.addItem(self.image)
         self.vb_image.addItem(self.fit_v_line)
         self.vb_image.addItem(self.fit_h_line)
+        # Figure out how to overlay properly?
+        # self.vb_image.addItem(self.x_slice)
+        # self.vb_image.addItem(self.x_fit)
+        # self.vb_image.addItem(self.y_slice)
+        # self.vb_image.addItem(self.y_fit)
         self.vb_zoom.addItem(self.zoom)
         self.vb_zoom.addItem(self.fit_maj_line)
         self.vb_zoom.addItem(self.fit_min_line)
@@ -269,13 +283,22 @@ class BeamDisplay(QtWidgets.QMainWindow):
         self.vb_image.setRange(QtCore.QRectF(0, 0, 1280, 1280))
         self.vb_zoom.setRange(QtCore.QRectF(0, 0, 50, 50))
         self.vb_residuals.setRange(QtCore.QRectF(0, 0, 50, 50))
-        self.vb_x.setRange(xRange=(0,255))
+
+        self.vb_x.invertY(True)
+        self.vb_y.invertY(True)
+        self.vb_x.setXLink(self.vb_image)
+        self.vb_y.setYLink(self.vb_image)
+        self.vb_x.setRange(yRange=(0,255))
         self.vb_y.setRange(xRange=(0,255))
-        self.vb_x.disableAutoRange(axis=self.vb_x.XAxis)
+        self.vb_x.disableAutoRange(axis=self.vb_x.YAxis)
         self.vb_y.disableAutoRange(axis=self.vb_y.XAxis)
 
-        self.g_layout.ci.layout.setColumnStretchFactor(0, 2)
+        self.g_layout.ci.layout.setColumnStretchFactor(0, 4)
         self.g_layout.ci.layout.setColumnStretchFactor(1, 1)
+        self.g_layout.ci.layout.setColumnStretchFactor(2, 2)
+        self.g_layout.ci.layout.setRowStretchFactor(0, 2)
+        self.g_layout.ci.layout.setRowStretchFactor(1, 2)
+        self.g_layout.ci.layout.setRowStretchFactor(2, 1)
 
     def add_tooltips(self):
         #TODO
@@ -336,6 +359,13 @@ def main():
     sys.exit(app.exec_())
 
 
+def test():
+    app  = QtWidgets.QApplication(sys.argv)
+
+    local()
+
+    sys.exit(app.exec_())
+
 
 if __name__ == "__main__":
-    main()
+    test()

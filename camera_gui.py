@@ -212,17 +212,17 @@ class BeamDisplay(QtWidgets.QMainWindow):
         self.cps.setText("{:.1f} cps".format(up['cps']))
 
 
-    def _get_exposure_params(self):
+    def get_exposure_params(self):
         val, min_, max_, step = self.cam.get_exposure_params()
-        self._exposure.setRange(min_, max_)
-        self._exposure.setSingleStep(step)
-        self._exposure.setValue(val)
+        self.exposure.setRange(min_, max_)
+        self.exposure.setSingleStep(step)
+        self.exposure.setValue(val)
 
-    def _exposure_cb(self):
-        exp = self._exposure.value()
+    def exposure_cb(self):
+        exp = self.exposure.value()
         self.cam.set_exposure_ms(exp)
 
-    def _aoi_cb(self):
+    def aoi_cb(self):
         pass
 
     def update_LUT(self):
@@ -253,18 +253,18 @@ class BeamDisplay(QtWidgets.QMainWindow):
         self.setGeometry(300, 300, 1500, 600)
 
     def init_info_pane(self):
-        self._single = QtGui.QPushButton("Single Acquisition")
-        self._start = QtGui.QPushButton("Start Acquisition")
-        self._stop = QtGui.QPushButton("Stop Acquisition")
-        self._single.clicked.connect(lambda: self.cam.single_acquisition())
-        self._start.clicked.connect(lambda: self.cam.start_acquisition())
-        self._stop.clicked.connect(lambda: self.cam.stop_acquisition())
+        self.single = QtGui.QPushButton("Single Acquisition")
+        self.start = QtGui.QPushButton("Start Acquisition")
+        self.stop = QtGui.QPushButton("Stop Acquisition")
+        self.single.clicked.connect(lambda: self.cam.single_acquisition())
+        self.start.clicked.connect(lambda: self.cam.start_acquisition())
+        self.stop.clicked.connect(lambda: self.cam.stop_acquisition())
 
-        self._exposure = QtGui.QDoubleSpinBox()
-        self._exposure.setSuffix(" ms")
-        self._get_exposure_params()
+        self.exposure = QtGui.QDoubleSpinBox()
+        self.exposure.setSuffix(" ms")
+        self.get_exposure_params()
         # connect after finding params so we don't send accidental update
-        self._exposure.valueChanged.connect(self._exposure_cb)
+        self.exposure.valueChanged.connect(self.exposure_cb)
 
         self.maj_radius = QtGui.QLabel()
         self.min_radius = QtGui.QLabel()
@@ -299,10 +299,10 @@ class BeamDisplay(QtWidgets.QMainWindow):
 
         self.info_pane_layout = QtWidgets.QVBoxLayout()
         self.info_pane_layout.setAlignment(QtCore.Qt.AlignTop)
-        self.info_pane_layout.addWidget(self._start)
-        self.info_pane_layout.addWidget(self._single)
-        self.info_pane_layout.addWidget(self._stop)
-        self.info_pane_layout.addWidget(self._exposure)
+        self.info_pane_layout.addWidget(self.start)
+        self.info_pane_layout.addWidget(self.single)
+        self.info_pane_layout.addWidget(self.stop)
+        self.info_pane_layout.addWidget(self.exposure)
         self.info_pane_layout.addStretch(1)
         self.info_pane_layout.addWidget(self.param_widget)
         self.info_pane_layout.addStretch(3)

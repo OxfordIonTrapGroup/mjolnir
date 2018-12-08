@@ -196,6 +196,10 @@ class GaussianBeam:
         # Ellipticity
         params['e'] = 1 - (params['semimin'] / params['semimaj'])
 
+        # Average radius
+        # Calculate gemometric mean so that area is the same
+        params['avg_radius'] = np.sqrt(params['semimin'] * params['semimaj'])
+
         return params
 
     @classmethod

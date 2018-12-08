@@ -4,7 +4,7 @@ import argparse
 
 from PyQt5 import QtWidgets, QtCore
 from artiq.protocols.pc_rpc import Client
-from camera_gui import BeamDisplay
+from ui import BeamDisplay
 from dummy_zmq import Dummy
 
 

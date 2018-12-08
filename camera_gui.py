@@ -48,21 +48,21 @@ class _Worker(QtCore.QObject):
         im_fit = GaussianBeam.f(pxcrop, p)
         im_residuals = im_crop - im_fit
 
-        # residual_max becomes 255
-        # -residual_max becomes 0
-        residual_max = np.amax(np.abs(im_residuals))
-        residual_scale = 2 * residual_max/255
-        residual_fraction = residual_max/np.amax(im_fit)
+        r_max = np.amax(np.abs(im_residuals))
+        r_scale = 2 * r_max/255
+        r_fraction = r_max/np.amax(im_fit)
         # currently residuals is on [-255.,255.] and also is float
         # need ints on [0,255]
-        im_res = 127.5 + (im_residuals / residual_scale)
+        # autoscale to make best use of our colour map
+        im_res = 127.5 + (im_residuals / r_scale)
         im_res = np.clip(im_res, 0, 255).astype(int)
 
-        # 5 tick legend for residuals
+        # legend for residuals
+        nticks = 5
         legend = {"{:.1f}%".format(100*frac):val
                   for (frac, val) in zip(
-                      np.linspace(-residual_fraction, residual_fraction, 5),
-                      np.linspace(0, 1, 5))}
+                      np.linspace(-r_fraction, r_fraction, nticks),
+                      np.linspace(0, 1, nticks))}
 
         # just in case max pixel is not exactly centred
         px_x0 = np.unravel_index(np.argmax(im_fit), im_fit.shape)
@@ -87,9 +87,6 @@ class _Worker(QtCore.QObject):
             'im_fit': im_fit,
             'im_res': im_res,
             'legend': legend,
-            'residual_max': residual_max,
-            'residual_scale': residual_scale,
-            'residual_fraction': residual_fraction,
             'x' : x,
             'x_slice': x_slice,
             'x_fit': x_fit,
@@ -170,11 +167,7 @@ class BeamDisplay(QtWidgets.QMainWindow):
         self.image.setImage(up['im'], **options)
         self.zoom.setImage(up['im_crop'], **options)
         self.residuals.setImage(up['im_res'], lut=self.residual_LUT, **options)
-
-        self._residual_fraction = up['residual_fraction']
-        self.res_label.setText("{:.1f}%".format(self._residual_fraction*100))
         self.res_legend.setLabels(up['legend'])
-
 
         self.x_slice.setData(up['x'], up['x_slice'])
         self.x_fit.setData(up['x'], up['x_fit'])
@@ -205,7 +198,6 @@ class BeamDisplay(QtWidgets.QMainWindow):
         self.x_centroid.setText(px_string(up['x0'][0]))
         self.y_centroid.setText(px_string(up['x0'][1]))
         self.ellipticity.setText("{:.3f}".format(up['e']))
-        # self.residual_max.setText("{:.1f}".format(up['residual_max']))
 
         now = pg.ptime.time()
         dt = now - self._last_update
@@ -247,9 +239,6 @@ class BeamDisplay(QtWidgets.QMainWindow):
         self.residual_LUT = cmap.getLookupTable(nPts=256)
         self._gradient = cmap.getGradient()
 
-    # def rescale_LUT(self):
-    #     self.residual_sf.setValue(self._residual_scale)
-
     def init_ui(self):
         self.widget = QtWidgets.QWidget()
         self.layout = QtWidgets.QHBoxLayout()
@@ -286,16 +275,6 @@ class BeamDisplay(QtWidgets.QMainWindow):
         self.x_centroid = QtGui.QLabel()
         self.y_centroid = QtGui.QLabel()
 
-        # self.residual_max = QtGui.QLabel()
-        # self.residual_rescale = QtGui.QPushButton("Rescale")
-        # self.residual_rescale.clicked.connect(self.rescale_LUT)
-        # self.residual_sf = QtGui.QDoubleSpinBox()
-        # self.residual_sf.setRange(0.01, 1.)
-        # self.residual_sf.setSingleStep(0.05)
-        # self.residual_sf.valueChanged.connect(self.update_LUT)
-        # deliberately afterwards to force update of lookup
-        # self.residual_sf.setValue(0.1)
-
         self.fps = QtGui.QLabel()
         self.cps = QtGui.QLabel()
 
@@ -326,10 +305,6 @@ class BeamDisplay(QtWidgets.QMainWindow):
         self.info_pane_layout.addWidget(self._exposure)
         self.info_pane_layout.addStretch(1)
         self.info_pane_layout.addWidget(self.param_widget)
-        self.info_pane_layout.addStretch(1)
-        # self.info_pane_layout.addWidget(self.residual_max)
-        # self.info_pane_layout.addWidget(self.residual_rescale)
-        # self.info_pane_layout.addWidget(self.residual_sf)
         self.info_pane_layout.addStretch(3)
         self.info_pane_layout.addWidget(self.fps)
         self.info_pane_layout.addWidget(self.cps)
@@ -360,9 +335,6 @@ class BeamDisplay(QtWidgets.QMainWindow):
         self.res_legend.setGradient(self._gradient)
         self.res_legend.setParentItem(self.vb_residuals)
 
-        # options = {"invertY":True, "enableMouse":False, "enableMenu": False}
-        # self.vb_resmap = self.g_layout.addViewBox(row=2, col=2, **options)
-
         options = {"invertY":True, "enableMouse":False, "enableMenu": False}
         self.vb_x = self.g_layout.addViewBox(row=2, col=0, **options)
         self.vb_y = self.g_layout.addViewBox(row=0, col=1, rowspan=2, **options)
@@ -388,7 +360,6 @@ class BeamDisplay(QtWidgets.QMainWindow):
         self.res_label.setFont(QtGui.QFont("", 10))
         self.res_label.setBrush(pg.mkBrush((200,200,200)))
         self.res_label.setScale(0.2)
-        # self.res_label.setFlag(QtGui.QGraphicsItem.ItemIgnoresTransformations)
 
         self.vb_image.addItem(self.image)
         self.vb_image.addItem(self.fit_v_line)

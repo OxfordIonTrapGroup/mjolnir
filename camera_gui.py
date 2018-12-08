@@ -1,121 +1,9 @@
-import asyncio
-import itertools
-import zmq
 import pyqtgraph as pg
 import numpy as np
-import sys
-import argparse
-import subprocess
 from PyQt5 import QtGui, QtWidgets, QtCore
-from quamash import QEventLoop
 from collections import deque
 
-from artiq.protocols.pc_rpc import Client
-from new_image_tools import GaussianBeam
-
-from dummy_zmq import Dummy
-
-
-class _Worker(QtCore.QObject):
-    new_update = QtCore.pyqtSignal()
-
-    def __init__(self, imageq, updateq):
-        super().__init__()
-
-        self._cps = None
-        self._last_update = pg.ptime.time()
-        self._region = 50
-        self.imageq = imageq
-        self.updateq = updateq
-
-    @QtCore.pyqtSlot()
-    def process_imageq(self):
-        try:
-            im = self.imageq.popleft()
-        except IndexError:
-            return
-        else:
-            self.process_image(im)
-
-    def process_image(self, im):
-        m, n = im.shape
-        pxmap = np.mgrid[0:m,0:n]
-
-        region = self._region
-        p = GaussianBeam.two_step_MLE(pxmap, im, region)
-        pxcrop, im_crop = GaussianBeam.crop(pxmap, im, p['x0'], region)
-
-        im_fit = GaussianBeam.f(pxcrop, p)
-        im_residuals = im_crop - im_fit
-
-        r_max = np.amax(np.abs(im_residuals))
-        r_scale = 2 * r_max/255
-        r_fraction = r_max/np.amax(im_fit)
-        # currently residuals is on [-255.,255.] and also is float
-        # need ints on [0,255]
-        # autoscale to make best use of our colour map
-        im_res = 127.5 + (im_residuals / r_scale)
-        im_res = np.clip(im_res, 0, 255).astype(int)
-
-        # legend for residuals
-        nticks = 5
-        legend = {"{:.1f}%".format(100*frac):val
-                  for (frac, val) in zip(
-                      np.linspace(-r_fraction, r_fraction, nticks),
-                      np.linspace(0, 1, nticks))}
-
-        # just in case max pixel is not exactly centred
-        px_x0 = np.unravel_index(np.argmax(im_fit), im_fit.shape)
-        px_x0 += pxcrop[:,0,0]
-
-        x = pxmap[0,:,0]
-        x_slice = im[:,px_x0[1]]
-        x_fit = GaussianBeam.f(pxmap[:,:,px_x0[1]],p)
-
-        y = pxmap[1,0,:]
-        y_slice = im[px_x0[0],:]
-        y_fit = GaussianBeam.f(pxmap[:,px_x0[0],:],p)
-
-        # I think sub-pixel position is allowed?
-        centre = QtCore.QPointF(*(p['x0']-pxcrop[:,0,0]))
-
-        iso_level = np.amax(im_fit) / np.exp(2)
-
-        update = {
-            'im': im,
-            'im_crop': im_crop,
-            'im_fit': im_fit,
-            'im_res': im_res,
-            'legend': legend,
-            'x' : x,
-            'x_slice': x_slice,
-            'x_fit': x_fit,
-            'y' : y,
-            'y_slice': y_slice,
-            'y_fit': y_fit,
-            'centre': centre,
-            'iso_level': iso_level
-        }
-        update.update(p)
-
-        now = pg.ptime.time()
-        dt = now - self._last_update
-        self._last_update = now
-        if self._cps is None:
-            self._cps = 1.0 / dt
-        else:
-            s = np.clip(dt*3., 0, 1)
-            self._cps = self._cps * (1-s) + (1.0/dt) * s
-
-        update['cps'] = self._cps
-
-        self.updateq.append(update)
-        self.new_update.emit()
-        self._working = False
-
-    @QtCore.pyqtSlot(int)
-    def set_region(self, value):
-        self._region = value
+from worker import Worker
 
 
 class BeamDisplay(QtWidgets.QMainWindow):
@@ -131,7 +19,7 @@ class BeamDisplay(QtWidgets.QMainWindow):
         # Deques discard the oldest value when full
         self.imageq = deque(maxlen=3)
         self.updateq = deque(maxlen=3)
-        self.worker = _Worker(self.imageq, self.updateq)
+        self.worker = Worker(self.imageq, self.updateq)
         self.thread = QtCore.QThread()
         self.worker.moveToThread(self.thread)
 
@@ -410,83 +298,3 @@ class BeamDisplay(QtWidgets.QMainWindow):
     def add_tooltips(self):
         #TODO
         pass
-
-
-def zmq_setup(ctx, server, port):
-    sock = ctx.socket(zmq.SUB)
-    sock.set_hwm(1)
-    sock.connect("tcp://{}:{}".format(server, port))
-    sock.setsockopt_string(zmq.SUBSCRIBE, '')
-    sock.setsockopt(zmq.CONFLATE, 1)
-    sock.setsockopt(zmq.RCVTIMEO, 1)
-    return sock
-
-
-def remote(args):
-    ### Remote operation ###
-    camera = Client(args.server, args.artiq_port)
-    b = BeamDisplay(camera)
-    ctx = zmq.Context()
-    sock = zmq_setup(ctx, args.server, args.zmq_port)
-
-    def qt_update():
-        try:
-            im = sock.recv_pyobj()
-        except zmq.error.Again as e:
-            pass
-        else:
-            b.queue_image(im)
-
-    timer = QtCore.QTimer(b)
-    timer.timeout.connect(qt_update)
-    timer.start(50) # timeout ms
-
-
-def local(args):
-    ### Local operation ###
-    camera = Dummy()
-    b = BeamDisplay(camera)
-    camera.register_callback(lambda im: b.queue_image(im))
-
-
-def test(args):
-    camera = Dummy()
-    b = BeamDisplay(camera)
-    camera.register_callback(lambda im: b.queue_image(im))
-
-
-def get_parser():
-    parser = argparse.ArgumentParser()
-    subparsers = parser.add_subparsers()
-
-    remote_parser = subparsers.add_parser("remote",
-        help="connect to a camera providing a ZMQ/Artiq network interface")
-    remote_parser.add_argument("--server", "-s", type=str, required=True)
-    remote_parser.add_argument("--artiq-port", "-p", type=int, default=4000)
-    remote_parser.add_argument("--zmq-port", "-z", type=int, default=5555)
-    remote_parser.set_defaults(func=remote)
-
-    local_parser = subparsers.add_parser("local",
-        help="connect to a local Thorlabs CMOS camera")
-    local_parser.add_argument("--device", "-d", type=int, required=True,
-        help="camera serial number")
-    local_parser.set_defaults(func=local)
-
-    test_parser = subparsers.add_parser("test",
-        help="dummy camera for testing")
-    test_parser.set_defaults(func=test)
-
-    return parser
-
-
-def main():
-    parser = get_parser()
-
-    args = parser.parse_args()
-    app = QtWidgets.QApplication(sys.argv)
-    args.func(args)
-    sys.exit(app.exec_())
-
-
-if __name__ == "__main__":
-    main()

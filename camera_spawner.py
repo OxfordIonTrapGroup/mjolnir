@@ -3,7 +3,7 @@ import sys
 import pyqtgraph as pg
 from PyQt5 import QtGui, QtWidgets, QtCore
 
-from camera_gui import get_parser
+from main import get_parser
 
 
 class ConnectionDialog(QtWidgets.QDialog):

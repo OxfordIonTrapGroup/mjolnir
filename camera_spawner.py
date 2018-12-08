@@ -3,7 +3,8 @@ import sys
 import pyqtgraph as pg
 from PyQt5 import QtGui, QtWidgets, QtCore
 
-from camera_gui import local, remote
+from camera_gui import get_parser
+
 
 class ConnectionDialog(QtWidgets.QDialog):
     """
@@ -16,38 +17,35 @@ class ConnectionDialog(QtWidgets.QDialog):
     """
     def __init__(self):
         super().__init__()
+        self.parser = get_parser()
         self.init_ui()
 
-    def init_local_connection(self):
-        local()
-
-    def init_remote_connection(self):
-        server = self.ip_address.text()
-        try:
-            ctl_port = int(self.artiq_port.text())
-        except ValueError as e:
-            self.error_message.setText("Error: Invalid ARTIQ port")
-            self.error_message.show()
-            return
-
-        try:
-            zmq_port = int(self.zmq_port.text())
-        except ValueError as e:
-            self.error_message.setText("Error: Invalid ZMQ port")
-            self.error_message.show()
-            return
-
-        try:
-            remote(server, ctl_port, zmq_port)
-        except Exception as e:
-            self.error_message.setText("Error: {}".format(e))
-            self.error_message.show()
-
     def init_connection(self):
+        argv = [str(self.conn_type.currentText().lower())]
         if self.conn_type.currentIndex() == 0:
-            self.init_remote_connection()
+            argv.extend([
+                    "-s", str(self.server.text()),
+                    "-p", str(self.artiq_port.text()),
+                    "-z", str(self.zmq_port.text())
+                ])
         elif self.conn_type.currentIndex() == 1:
-            self.init_local_connection()
+            argv.extend([
+                    "-d", str(self.serial_number.text())
+                ])
+
+        try:
+            args = self.parser.parse_args(argv)
+        except Exception as e:
+            self.error_message.setText(
+                "Error parsing args: {}".format(e))
+            self.error_message.show()
+            return
+
+        try:
+            args.func(args)
+        except Exception as e:
+            self.error_message.setText(
+                "Error initialising: {}".format(e))
 
     def init_ui(self):
         self.conn_type = QtGui.QComboBox()
@@ -60,10 +58,10 @@ class ConnectionDialog(QtWidgets.QDialog):
         self.error_message.hide()
 
         # Remote connection params
-        self.ip_address = QtGui.QLineEdit()
+        self.server = QtGui.QLineEdit()
         self.artiq_port = QtGui.QLineEdit()
         self.zmq_port = QtGui.QLineEdit()
-        self.ip_address.setText("127.0.0.1")
+        self.server.setText("127.0.0.1")
         self.artiq_port.setText("4000")
         self.zmq_port.setText("5555")
 
@@ -83,7 +81,7 @@ class ConnectionDialog(QtWidgets.QDialog):
         self.conn_type_widget.setLayout(self.conn_type_layout)
 
         self.remote_layout = QtWidgets.QFormLayout()
-        self.remote_layout.addRow("IP Address:", self.ip_address)
+        self.remote_layout.addRow("IP Address:", self.server)
         self.remote_layout.addRow("ARTIQ port:", self.artiq_port)
         self.remote_layout.addRow("ZMQ port:", self.zmq_port)
         self.remote_params_widget = QtGui.QWidget()

@@ -18,6 +18,7 @@ from dummy_zmq import Dummy
 
 class BeamDisplay(QtWidgets.QMainWindow):
     new_image = QtCore.pyqtSignal()
+    new_update = QtCore.pyqtSignal()
 
     def __init__(self, camera):
         super().__init__()
@@ -27,6 +28,7 @@ class BeamDisplay(QtWidgets.QMainWindow):
         self.imageq = deque()
         self.updateq = deque()
         self.new_image.connect(self.process_imageq)
+        self.new_update.connect(self.update)
 
         # Pixel width in microns (get from camera?)
         self._px_width = 5.2
@@ -52,78 +54,108 @@ class BeamDisplay(QtWidgets.QMainWindow):
         try:
             im = self.imageq.popleft()
         except IndexError:
-            pass
-        else:
-            self.update(im)
-
-    def update(self, im):
-        if self._processing:
             return
-        self._processing = True
-        self.image.setImage(im, autoRange=False, autoLevels=False)
+        else:
+            self.process_image(im)
 
-        if True:
-            m, n = im.shape
-            pxmap = np.mgrid[0:m,0:n]
-            p = GaussianBeam.two_step_MLE(pxmap, im, self._region)
-            pxcrop, im_crop = GaussianBeam.crop(pxmap, im, p['x0'], self._region)
-            self.zoom.setImage(im_crop, autoRange=False, autoLevels=False)
+    def process_image(self, im):
+        m, n = im.shape
+        pxmap = np.mgrid[0:m,0:n]
 
-            im_fit = GaussianBeam.f(pxcrop, p)
-            im_residuals = im_crop - im_fit
-            self._residual_scale = 2 * np.abs(np.amax(im_residuals))/255
-            self.res_label.setText("{:.1f}%".format(self._residual_scale*100))
-            # currently residuals is on [-255.,255.] and also is float
-            # need ints on [0,255]
-            im_res = 128 + (im_residuals / 2)
-            im_res = np.clip(im_res, 0, 255).astype(int)
-            self.residuals.setImage(im_res,
-                autoRange=False, autoLevels=False, lut=self.residual_LUT)
+        region = self._region
+        p = GaussianBeam.two_step_MLE(pxmap, im, region)
+        pxcrop, im_crop = GaussianBeam.crop(pxmap, im, p['x0'], region)
 
+        im_fit = GaussianBeam.f(pxcrop, p)
+        im_residuals = im_crop - im_fit
+        residual_max = np.amax(np.abs(im_residuals))
+        residual_scale = 2 * residual_max/255
+        # currently residuals is on [-255.,255.] and also is float
+        # need ints on [0,255]
+        im_res = 128 + (im_residuals / 2)
+        im_res = np.clip(im_res, 0, 255).astype(int)
 
-            # just in case max pixel is not exactly centred
-            px_x0 = np.unravel_index(np.argmax(im_fit), im_fit.shape)
-            # x slice is horizontal
-            # self.x_slice.setData(im_crop[:,px_x0[1]], pxcrop[0,:,0])
-            # self.x_fit.setData(im_fit[:,px_x0[1]], pxcrop[0,:,0])
-            # self.y_slice.setData(im_crop[px_x0[0],:], pxcrop[1,0,:])
-            # self.y_fit.setData(im_fit[px_x0[0],:], pxcrop[1,0,:])
+        # just in case max pixel is not exactly centred
+        px_x0 = np.unravel_index(np.argmax(im_fit), im_fit.shape)
+        px_x0 += pxcrop[:,0,0]
 
-            px_x0 += pxcrop[:,0,0]
-            x_fit = GaussianBeam.f(pxmap[:,:,px_x0[1]],p)
-            self.x_slice.setData(pxmap[0,:,0], im[:,px_x0[1]])
-            self.x_fit.setData(pxmap[0,:,0], x_fit)
+        x = pxmap[0,:,0]
+        x_slice = im[:,px_x0[1]]
+        x_fit = GaussianBeam.f(pxmap[:,:,px_x0[1]],p)
 
-            y_fit = GaussianBeam.f(pxmap[:,px_x0[0],:],p)
-            self.y_slice.setData(im[px_x0[0],:], pxmap[1,0,:])
-            self.y_fit.setData(y_fit, pxmap[1,0,:])
+        y = pxmap[1,0,:]
+        y_slice = im[px_x0[0],:]
+        y_fit = GaussianBeam.f(pxmap[:,px_x0[0],:],p)
 
-            self.fit_v_line.setValue(p['x0'][0])
-            self.fit_h_line.setValue(p['x0'][1])
+        # I think sub-pixel position is allowed?
+        centre = QtCore.QPointF(*(p['x0']-pxcrop[:,0,0]))
 
-            # I think sub-pixel position is allowed?
-            centre = QtCore.QPointF(*(p['x0']-pxcrop[:,0,0]))
-            self.fit_maj_line.setValue(centre)
-            self.fit_maj_line.setValue(centre)
-            self.fit_maj_line.setAngle(p['semimaj_angle'])
-            self.fit_min_line.setAngle(p['semimin_angle'])
+        iso_level = np.amax(im_fit) / np.exp(2)
 
-            self.isocurve.setLevel(np.amax(im_fit) / np.exp(2))
-            self.isocurve.setData(im_fit)
+        update = {
+            'im': im,
+            'im_crop': im_crop,
+            'im_fit': im_fit,
+            'im_res': im_res,
+            'residual_max': residual_max,
+            'residual_scale': residual_scale,
+            'x' : x,
+            'x_slice': x_slice,
+            'x_fit': x_fit,
+            'y' : y,
+            'y_slice': y_slice,
+            'y_fit': y_fit,
+            'centre': centre,
+            'iso_level': iso_level
+        }
+        update.update(p)
 
-            def px_string(px):
-                return "{:.1f}μm ({:.1f}px)".format(px*self._px_width, px)
+        self.updateq.append(update)
+        self.new_update.emit()
 
-            self.maj_radius.setText(px_string(p['semimaj']))
-            self.min_radius.setText(px_string(p['semimin']))
-            self.avg_radius.setText(px_string(p['avg_radius']))
-            self.x_radius.setText(px_string(p['x_radius']))
-            self.y_radius.setText(px_string(p['y_radius']))
-            self.x_centroid.setText(px_string(p['x0'][0]))
-            self.y_centroid.setText(px_string(p['x0'][1]))
-            self.ellipticity.setText("{:.3f}".format(p['e']))
-            self.residual_max.setText("{:.1f}".format(np.amax(np.abs(im_residuals))))
+    def update(self):
+        try:
+            up = self.updateq.popleft()
+        except IndexError:
+            return
 
+        options = {'autoRange': False, 'autoLevels': False}
+        self.image.setImage(up['im'], **options)
+        self.zoom.setImage(up['im_crop'], **options)
+        self.residuals.setImage(up['im_res'], lut=self.residual_LUT, **options)
+        self._residual_scale = up['residual_scale']
+        self.res_label.setText("{:.1f}%".format(self._residual_scale*100))
+
+        self.x_slice.setData(up['x'], up['x_slice'])
+        self.x_fit.setData(up['x'], up['x_fit'])
+
+        self.y_slice.setData(up['y_slice'], up['y'])
+        self.y_fit.setData(up['y_fit'], up['y'])
+
+        self.fit_v_line.setValue(up['x0'][0])
+        self.fit_h_line.setValue(up['x0'][1])
+
+        # I think sub-pixel position is allowed?
+        self.fit_maj_line.setValue(up['centre'])
+        self.fit_maj_line.setValue(up['centre'])
+        self.fit_maj_line.setAngle(up['semimaj_angle'])
+        self.fit_min_line.setAngle(up['semimin_angle'])
+
+        self.isocurve.setLevel(up['iso_level'])
+        self.isocurve.setData(up['im_fit'])
+
+        def px_string(px):
+            return "{:.1f}μm ({:.1f}px)".format(px*self._px_width, px)
+
+        self.maj_radius.setText(px_string(up['semimaj']))
+        self.min_radius.setText(px_string(up['semimin']))
+        self.avg_radius.setText(px_string(up['avg_radius']))
+        self.x_radius.setText(px_string(up['x_radius']))
+        self.y_radius.setText(px_string(up['y_radius']))
+        self.x_centroid.setText(px_string(up['x0'][0]))
+        self.y_centroid.setText(px_string(up['x0'][1]))
+        self.ellipticity.setText("{:.3f}".format(up['e']))
+        self.residual_max.setText("{:.1f}".format(up['residual_max']))
 
         now = pg.ptime.time()
         dt = now - self._last_update
@@ -136,8 +168,6 @@ class BeamDisplay(QtWidgets.QMainWindow):
 
         self.fps.setText("{:.1f} fps".format(self._fps))
 
-        # QApplication.processEvents()
-        self._processing = False
 
     def _get_exposure_params(self):
         val, min_, max_, step = self.cam.get_exposure_params()

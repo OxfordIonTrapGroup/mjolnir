@@ -8,6 +8,7 @@ import argparse
 import subprocess
 from PyQt5 import QtGui, QtWidgets, QtCore
 from quamash import QEventLoop
+from collections import deque
 
 from artiq.protocols.pc_rpc import Client
 from new_image_tools import GaussianBeam
@@ -16,10 +17,16 @@ from dummy_zmq import Dummy
 
 
 class BeamDisplay(QtWidgets.QMainWindow):
+    new_image = QtCore.pyqtSignal()
+
     def __init__(self, camera):
         super().__init__()
 
         self.cam = camera
+
+        self.imageq = deque()
+        self.updateq = deque()
+        self.new_image.connect(self.process_imageq)
 
         # Pixel width in microns (get from camera?)
         self._px_width = 5.2
@@ -30,8 +37,24 @@ class BeamDisplay(QtWidgets.QMainWindow):
         self._last_update = pg.ptime.time()
         self._symbols = itertools.cycle(r"\|/-") # unicode didnt work(r"⠇⠋⠙⠸⠴⠦")
 
+        # difference between most positive and most negative
+        # residuals in units of full scale
+        self._residual_scale = 0.05
+
         self.init_ui()
         self.show()
+
+    def queue_image(self, im):
+        self.imageq.append(im)
+        self.new_image.emit()
+
+    def process_imageq(self):
+        try:
+            im = self.imageq.popleft()
+        except IndexError:
+            pass
+        else:
+            self.update(im)
 
     def update(self, im):
         if self._processing:
@@ -48,13 +71,15 @@ class BeamDisplay(QtWidgets.QMainWindow):
 
             im_fit = GaussianBeam.f(pxcrop, p)
             im_residuals = im_crop - im_fit
-
+            self._residual_scale = 2 * np.abs(np.amax(im_residuals))/255
+            self.res_label.setText("{:.1f}%".format(self._residual_scale*100))
             # currently residuals is on [-255.,255.] and also is float
             # need ints on [0,255]
             im_res = 128 + (im_residuals / 2)
             im_res = np.clip(im_res, 0, 255).astype(int)
             self.residuals.setImage(im_res,
                 autoRange=False, autoLevels=False, lut=self.residual_LUT)
+
 
             # just in case max pixel is not exactly centred
             px_x0 = np.unravel_index(np.argmax(im_fit), im_fit.shape)
@@ -91,6 +116,7 @@ class BeamDisplay(QtWidgets.QMainWindow):
 
             self.maj_radius.setText(px_string(p['semimaj']))
             self.min_radius.setText(px_string(p['semimin']))
+            self.avg_radius.setText(px_string(p['avg_radius']))
             self.x_radius.setText(px_string(p['x_radius']))
             self.y_radius.setText(px_string(p['y_radius']))
             self.x_centroid.setText(px_string(p['x0'][0]))
@@ -127,13 +153,19 @@ class BeamDisplay(QtWidgets.QMainWindow):
         pass
 
     def update_LUT(self, scale):
-        ticks = self.gradient.listTicks()
-        for i in range(5):
-            if i == 2:
-                continue
-            value = 0.5 * (1 + scale * (i-2) * 0.5)
-            self.gradient.setTickValue(ticks[i][0], value)
-        self.residual_LUT = self.gradient.getLookupTable(256)
+        # Colour map for residuals is transparent when residual is zero
+        colors = np.array([
+            (0, 255, 255, 255),
+            (0, 0, 255, 191),
+            (0, 0, 0, 0),
+            (255, 0, 0, 191),
+            (255, 255, 0, 255)
+        ], dtype=np.uint8)
+        positions = [0.5 * (1 + 0.5 * scale * i) for i in range(-2,3)]
+        self.residual_LUT = pg.ColorMap(positions, colors).getLookupTable(nPts=256)
+
+    def rescale_LUT(self):
+        self.residual_sf.setValue(self._residual_scale)
 
     def init_ui(self):
         self.widget = QtWidgets.QWidget()
@@ -172,20 +204,14 @@ class BeamDisplay(QtWidgets.QMainWindow):
         self.y_centroid = QtGui.QLabel()
 
         self.residual_max = QtGui.QLabel()
-        self.gradient = pg.GradientWidget()
-        self.gradient.loadPreset('bipolar')
-        self.gradient.setTickColor(self.gradient.getTick(2),
-            pg.mkColor(0,0,255,127))
-        self.gradient.setTickColor(self.gradient.getTick(2),
-            pg.mkColor(0,0,0,0))
-        self.gradient.setTickColor(self.gradient.getTick(3),
-            pg.mkColor(255,0,0,127))
-
+        self.residual_rescale = QtGui.QPushButton("Rescale")
+        self.residual_rescale.clicked.connect(self.rescale_LUT)
         self.residual_sf = QtGui.QDoubleSpinBox()
         self.residual_sf.setRange(0.01, 1.)
+        self.residual_sf.setSingleStep(0.05)
         self.residual_sf.valueChanged.connect(self.update_LUT)
         # deliberately afterwards to force update of lookup
-        self.residual_sf.setValue(1.)
+        self.residual_sf.setValue(0.1)
 
         self.fps = QtGui.QLabel()
 
@@ -218,8 +244,8 @@ class BeamDisplay(QtWidgets.QMainWindow):
         self.info_pane_layout.addWidget(self.param_widget)
         self.info_pane_layout.addStretch(1)
         self.info_pane_layout.addWidget(self.residual_max)
+        self.info_pane_layout.addWidget(self.residual_rescale)
         self.info_pane_layout.addWidget(self.residual_sf)
-        self.info_pane_layout.addWidget(self.gradient)
         self.info_pane_layout.addStretch(3)
         self.info_pane_layout.addWidget(self.fps)
 
@@ -263,6 +289,12 @@ class BeamDisplay(QtWidgets.QMainWindow):
         self.isocurve = pg.IsocurveItem(pen=fit_pen)
         self.isocurve.setParentItem(self.zoom)
 
+        self.res_label = QtGui.QGraphicsSimpleTextItem(r"")
+        self.res_label.setFont(QtGui.QFont("", 10))
+        self.res_label.setBrush(pg.mkBrush((200,200,200)))
+        self.res_label.setScale(0.2)
+        # self.res_label.setFlag(QtGui.QGraphicsItem.ItemIgnoresTransformations)
+
         self.vb_image.addItem(self.image)
         self.vb_image.addItem(self.fit_v_line)
         self.vb_image.addItem(self.fit_h_line)
@@ -275,12 +307,13 @@ class BeamDisplay(QtWidgets.QMainWindow):
         self.vb_zoom.addItem(self.fit_maj_line)
         self.vb_zoom.addItem(self.fit_min_line)
         self.vb_residuals.addItem(self.residuals)
+        self.vb_residuals.addItem(self.res_label)
         self.vb_x.addItem(self.x_slice)
         self.vb_x.addItem(self.x_fit)
         self.vb_y.addItem(self.y_slice)
         self.vb_y.addItem(self.y_fit)
 
-        self.vb_image.setRange(QtCore.QRectF(0, 0, 1280, 1280))
+        self.vb_image.setRange(QtCore.QRectF(0, 0, 1280, 1024))
         self.vb_zoom.setRange(QtCore.QRectF(0, 0, 50, 50))
         self.vb_residuals.setRange(QtCore.QRectF(0, 0, 50, 50))
 
@@ -299,6 +332,16 @@ class BeamDisplay(QtWidgets.QMainWindow):
         self.g_layout.ci.layout.setRowStretchFactor(0, 2)
         self.g_layout.ci.layout.setRowStretchFactor(1, 2)
         self.g_layout.ci.layout.setRowStretchFactor(2, 1)
+
+        self.vb_x.setMinimumHeight(50)
+        self.vb_y.setMinimumWidth(50)
+        self.vb_x.setMaximumHeight(100)
+        self.vb_y.setMaximumWidth(100)
+        self.vb_image.setMinimumSize(640, 512)
+        self.vb_zoom.setMinimumSize(320, 320)
+        self.vb_residuals.setMinimumSize(320, 320)
+
+        self.g_layout.setMinimumSize(1000,600)
 
     def add_tooltips(self):
         #TODO
@@ -328,7 +371,7 @@ def remote(server, ctl_port, zmq_port):
         except zmq.error.Again as e:
             pass
         else:
-            b.update(im)
+            b.queue_image(im)
 
     timer = QtCore.QTimer(b)
     timer.timeout.connect(qt_update)
@@ -339,7 +382,7 @@ def local():
     ### Local operation ###
     camera = Dummy()
     b = BeamDisplay(camera)
-    camera.register_callback(lambda im: b.update(im))
+    camera.register_callback(lambda im: b.queue_image(im))
 
 
 def main():

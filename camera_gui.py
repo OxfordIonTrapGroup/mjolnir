@@ -156,9 +156,9 @@ class BeamDisplay(QtWidgets.QMainWindow):
 
         options = {'autoRange': False, 'autoLevels': False}
         self.image.setImage(up['im'], **options)
-
         self.zoom.setImage(up['im_crop'], **options)
         self.residuals.setImage(up['im_res'], lut=self.residual_LUT, **options)
+
         self._residual_scale = up['residual_scale']
         self.res_label.setText("{:.1f}%".format(self._residual_scale*100))
 
@@ -285,7 +285,7 @@ class BeamDisplay(QtWidgets.QMainWindow):
 
         self.param_layout = QtWidgets.QFormLayout()
         self.param_layout.addRow(QtGui.QLabel("Beam Parameters"))
-        self.param_layout.addRow(QtGui.QLabel("(all widths are 1/e^2)"))
+        self.param_layout.addRow(QtGui.QLabel("(all radii are 1/e^2)"))
         self.param_layout.addRow(QtGui.QWidget())
         self.param_layout.addRow("Semi-major radius:", self.maj_radius)
         self.param_layout.addRow("Semi-minor radius:", self.min_radius)
@@ -336,10 +336,12 @@ class BeamDisplay(QtWidgets.QMainWindow):
 
         options = {"lockAspect":True, "invertY":True}
         self.vb_image = self.g_layout.addViewBox(row=0, col=0, rowspan=2, **options)
-        self.vb_x = self.g_layout.addViewBox(row=2, col=0)
-        self.vb_y = self.g_layout.addViewBox(row=0, col=1, rowspan=2)
         self.vb_zoom = self.g_layout.addViewBox(row=0, col=2, **options)
         self.vb_residuals = self.g_layout.addViewBox(row=1, col=2, **options)
+
+        options = {"invertY":True, "enableMouse":False, "enableMenu": False}
+        self.vb_x = self.g_layout.addViewBox(row=2, col=0, **options)
+        self.vb_y = self.g_layout.addViewBox(row=0, col=1, rowspan=2, **options)
 
         color = pg.mkColor(40,40,40)
         self.vb_image.setBackgroundColor(color)
@@ -386,8 +388,6 @@ class BeamDisplay(QtWidgets.QMainWindow):
         self.vb_zoom.setRange(QtCore.QRectF(0, 0, 50, 50))
         self.vb_residuals.setRange(QtCore.QRectF(0, 0, 50, 50))
 
-        self.vb_x.invertY(True)
-        self.vb_y.invertY(True)
         self.vb_x.setXLink(self.vb_image)
         self.vb_y.setYLink(self.vb_image)
         self.vb_x.setRange(yRange=(0,255))
@@ -410,7 +410,7 @@ class BeamDisplay(QtWidgets.QMainWindow):
         self.vb_zoom.setMinimumSize(320, 320)
         self.vb_residuals.setMinimumSize(320, 320)
 
-        self.g_layout.setMinimumSize(1000,600)
+        self.g_layout.setMinimumSize(1100,562)
 
     def add_tooltips(self):
         #TODO
@@ -454,7 +454,7 @@ def local(args):
     camera.register_callback(lambda im: b.queue_image(im))
 
 
-def main():
+def get_parser():
     parser = argparse.ArgumentParser()
     subparsers = parser.add_subparsers()
 
@@ -471,22 +471,25 @@ def main():
         help="camera serial number")
     local_parser.set_defaults(func=local)
 
+    return parser
+
+
+def main():
+    parser = get_parser()
+
     args = parser.parse_args()
-
     app = QtWidgets.QApplication(sys.argv)
-
     args.func(args)
-
     sys.exit(app.exec_())
 
 
 def test():
     app  = QtWidgets.QApplication(sys.argv)
 
-    local()
+    local(None)
 
     sys.exit(app.exec_())
 
 
 if __name__ == "__main__":
-    main()
+    test()

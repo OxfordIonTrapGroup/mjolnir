@@ -16,40 +16,19 @@ from new_image_tools import GaussianBeam
 from dummy_zmq import Dummy
 
 
-class BeamDisplay(QtWidgets.QMainWindow):
-    new_image = QtCore.pyqtSignal()
+class _Worker(QtCore.QObject):
     new_update = QtCore.pyqtSignal()
 
-    def __init__(self, camera):
+    def __init__(self, imageq, updateq):
         super().__init__()
 
-        self.cam = camera
-
-        self.imageq = deque()
-        self.updateq = deque()
-        self.new_image.connect(self.process_imageq)
-        self.new_update.connect(self.update)
-
-        # Pixel width in microns (get from camera?)
-        self._px_width = 5.2
-
-        self._region = 50
-        self._processing = False
-        self._fps = None
+        self._cps = None
         self._last_update = pg.ptime.time()
-        self._symbols = itertools.cycle(r"\|/-") # unicode didnt work(r"⠇⠋⠙⠸⠴⠦")
+        self._region = 50
+        self.imageq = imageq
+        self.updateq = updateq
 
-        # difference between most positive and most negative
-        # residuals in units of full scale
-        self._residual_scale = 0.05
-
-        self.init_ui()
-        self.show()
-
-    def queue_image(self, im):
-        self.imageq.append(im)
-        self.new_image.emit()
-
+    @QtCore.pyqtSlot()
     def process_imageq(self):
         try:
             im = self.imageq.popleft()
@@ -110,9 +89,65 @@ class BeamDisplay(QtWidgets.QMainWindow):
         }
         update.update(p)
 
+        now = pg.ptime.time()
+        dt = now - self._last_update
+        self._last_update = now
+        if self._cps is None:
+            self._cps = 1.0 / dt
+        else:
+            s = np.clip(dt*3., 0, 1)
+            self._cps = self._cps * (1-s) + (1.0/dt) * s
+
+        update['cps'] = self._cps
+
         self.updateq.append(update)
         self.new_update.emit()
+        self._working = False
 
+    @QtCore.pyqtSlot(int)
+    def set_region(self, value):
+        self._region = value
+
+
+class BeamDisplay(QtWidgets.QMainWindow):
+    new_image = QtCore.pyqtSignal()
+
+    def __init__(self, camera):
+        super().__init__()
+
+        self.cam = camera
+        # Pixel width in microns (get from camera?)
+        self._px_width = 5.2
+
+        # Deques discard the oldest value when full
+        self.imageq = deque(maxlen=3)
+        self.updateq = deque(maxlen=3)
+        self.worker = _Worker(self.imageq, self.updateq)
+        self.thread = QtCore.QThread()
+        self.worker.moveToThread(self.thread)
+
+        # must occur after moving worker!
+        self.new_image.connect(self.worker.process_imageq)
+        self.worker.new_update.connect(self.update)
+        self.thread.start()
+
+        self._fps = None
+        self._last_update = pg.ptime.time()
+
+        # difference between most positive and most negative
+        # residuals in units of full scale
+        self._residual_scale = 0.05
+
+        self.init_ui()
+        self.show()
+
+    @QtCore.pyqtSlot()
+    def queue_image(self, im):
+        """Queues an image for fitting and plotting"""
+        self.imageq.append(im)
+        self.new_image.emit()
+
+    @QtCore.pyqtSlot()
     def update(self):
         try:
             up = self.updateq.popleft()
@@ -121,6 +156,7 @@ class BeamDisplay(QtWidgets.QMainWindow):
 
         options = {'autoRange': False, 'autoLevels': False}
         self.image.setImage(up['im'], **options)
+
         self.zoom.setImage(up['im_crop'], **options)
         self.residuals.setImage(up['im_res'], lut=self.residual_LUT, **options)
         self._residual_scale = up['residual_scale']
@@ -167,6 +203,7 @@ class BeamDisplay(QtWidgets.QMainWindow):
             self._fps = self._fps * (1-s) + (1.0/dt) * s
 
         self.fps.setText("{:.1f} fps".format(self._fps))
+        self.cps.setText("{:.1f} cps".format(up['cps']))
 
 
     def _get_exposure_params(self):
@@ -244,6 +281,7 @@ class BeamDisplay(QtWidgets.QMainWindow):
         self.residual_sf.setValue(0.1)
 
         self.fps = QtGui.QLabel()
+        self.cps = QtGui.QLabel()
 
         self.param_layout = QtWidgets.QFormLayout()
         self.param_layout.addRow(QtGui.QLabel("Beam Parameters"))
@@ -278,6 +316,7 @@ class BeamDisplay(QtWidgets.QMainWindow):
         self.info_pane_layout.addWidget(self.residual_sf)
         self.info_pane_layout.addStretch(3)
         self.info_pane_layout.addWidget(self.fps)
+        self.info_pane_layout.addWidget(self.cps)
 
         self.info_pane = QtWidgets.QWidget(self)
         self.info_pane.setLayout(self.info_pane_layout)

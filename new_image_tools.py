@@ -58,10 +58,15 @@ def check_shape(x, y):
     assert y.shape == (m, n)
 
 
-def parameter_initialiser(x, y):
+def parameter_initialiser(x, y, centroid_only=False):
     """naively calculate centroid and covariance of data"""
     # x is like np.mgrid[0:m,0:n]
     check_shape(x, y)
+
+    if centroid_only:
+        # estimate centroid with minimal calculation
+        x0 = np.einsum("ijk,jk->i", x, y)/np.sum(y)
+        return {'x0': x0}
 
     y0 = np.amin(y)
     a = np.sum(y - y0)
@@ -86,21 +91,21 @@ def parameter_initialiser(x, y):
 
 def _fitting_function(x, p):
     x = np.einsum("i...->...i", x)
-    d = x - p['x0']
+    d = x - p.get('x0', np.zeros(2))
 
-    det = det2x2(p['cov'])
-    inv = inv2x2(p['cov'])
+    det = det2x2(p.get('cov', np.eye(2)))
+    inv = inv2x2(p.get('cov', np.eye(2)))
 
     pref = (1/(2*np.pi*np.sqrt(np.abs(det))))
     expo = -0.5*np.einsum("...k,kl,...l->...", d, inv, d)
 
-    y = p['scale']*pref*np.exp(expo) + p['offset']
+    y = p.get('scale', 1.)*pref*np.exp(expo) + p.get('offset', 0.)
 
     return y
 
 
 # annoying function signature for curve_fit
-def fitting_function(x, x0_0, x0_1, c00, c01, c11, a, y0):
+def fitting_function(x, x0_0=0, x0_1=0, c00=1, c01=0, c11=1, a=1, y0=0):
     p = pack([x0_0, x0_1, c00, c01, c11, a, y0])
     return _fitting_function(x, p)
 
@@ -108,18 +113,36 @@ def fitting_function(x, x0_0, x0_1, c00, c01, c11, a, y0):
 class GaussianBeam:
     @classmethod
     def f(cls, xdata, p):
+        """Return points on a 2D gaussian given by parameters p
+
+        :param xdata: array of pixel map points to calculate value at
+        :param p: parameter dictionary
+                  - x0: centroid, default (0,0)
+                  - cov: covariance matrix, default identity
+                  - scale: scale factor, default 1
+                  - offset: z offset, default 0
+        """
         return _fitting_function(xdata, p)
 
     @classmethod
     def one_step_MLE(cls, xdata, ydata):
+        """Performs MLE of parameters on full image
+
+        Can be skewed by noise far from the centroid, and is slow. Avoid.
+        """
         p = parameter_initialiser(xdata, ydata)
         p.update(cls.compute_derived_properties(p))
         return p
 
     @classmethod
     def two_step_MLE(cls, xdata, ydata, region=50):
-        """Uses MLE first on full data, then on data cropped by initial fit"""
-        p = parameter_initialiser(xdata, ydata)
+        """Estimates centroid, then performs MLE on cropped image
+
+        Fast and fairly accurate - good for real time plotting.
+        If cropping is too aggressive, will have systematic error visible in
+        residuals.
+        """
+        p = parameter_initialiser(xdata, ydata, centroid_only=True)
 
         xcrop, ycrop = cls.crop(xdata, ydata, p['x0'], region=region)
         p = parameter_initialiser(xcrop, ycrop)
@@ -129,7 +152,11 @@ class GaussianBeam:
 
     @classmethod
     def lsq_fit(cls, xdata, ydata, p0_dict=None, **kwargs):
-        """Least squares fit on all data points"""
+        """Least squares fit on all data points
+
+        If no initial estimate is provided, will use the one_step_MLE
+        to start with. This is inefficient and should be revised.
+        """
         if p0_dict is None:
             p0 = unpack(parameter_initialiser(xdata, ydata))
         else:
@@ -146,15 +173,18 @@ class GaussianBeam:
 
     @classmethod
     def lsq_cropped(cls, xdata, ydata, region=50):
-        """Crops data using MLE fit, then uses least squares on result"""
-        p = parameter_initialiser(xdata, ydata)
+        """Estimates centroid, then uses least squares on cropped data"""
+        p = parameter_initialiser(xdata, ydata, centroid_only=True)
 
         xcrop, ycrop = cls.crop(xdata, ydata, p['x0'], region=region)
         return self.lsq_fit(xcrop, ycrop, p0_dict=p)
 
     @classmethod
     def _get_limits(cls, x0, shape, region=50):
-        """returns imin, imax, jmin, jmax"""
+        """Returns cropped coordinates (imin, imax, jmin, jmax)
+
+        Will ensure that all points are within bounds.
+        """
         hr = int(region/2)
         x0 = np.around(x0).astype(int)
         lims = np.array([x0-hr, x0+hr])
@@ -162,22 +192,16 @@ class GaussianBeam:
 
     @classmethod
     def crop(cls, xdata, ydata, x0, region=50):
+        """Crops both pixel map and image given centroid and region"""
         imin, imax, jmin, jmax = cls._get_limits(x0, ydata.shape, region)
         xcrop = xdata[:, imin:imax, jmin:jmax]
         ycrop = ydata[imin:imax, jmin:jmax]
         return xcrop, ycrop
 
     @classmethod
-    def mask(cls, ydata, x0, region=50):
-        imin, imax, jmin, jmax = cls._get_limits(x0, ydata.shape, region)
-        mask = np.full_like(ydata, False, dtype=bool)
-        mask[imin:imax, jmin:jmax] = True
-        ymasked = np.copy(ydata)
-        ymasked[~mask] = 0.
-        return ymasked
-
-    @classmethod
     def compute_derived_properties(cls, p):
+        """Calculates useful properties from fitted parameter dict"""
+
         cov = p['cov']
 
         params = {}

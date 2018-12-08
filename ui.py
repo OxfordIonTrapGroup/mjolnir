@@ -66,7 +66,8 @@ class BeamDisplay(QtWidgets.QMainWindow):
         self.fit_v_line.setValue(up['x0'][0])
         self.fit_h_line.setValue(up['x0'][1])
 
-        # I think sub-pixel position is allowed?
+        # 'centre' is a QPointF
+        # Sub-pixel position is allowed but ignored
         self.fit_maj_line.setValue(up['centre'])
         self.fit_maj_line.setValue(up['centre'])
         self.fit_maj_line.setAngle(up['semimaj_angle'])
@@ -113,7 +114,7 @@ class BeamDisplay(QtWidgets.QMainWindow):
     def aoi_cb(self):
         pass
 
-    def update_LUT(self):
+    def get_color_map(self):
         # Colour map for residuals is transparent when residual is zero
         colors = np.array([
             (0, 255, 255, 255),
@@ -123,9 +124,7 @@ class BeamDisplay(QtWidgets.QMainWindow):
             (255, 255, 0, 255)
         ], dtype=np.uint8)
         positions = [0.25 * (2 + i) for i in range(-2,3)]
-        cmap = pg.ColorMap(positions, colors)
-        self.residual_LUT = cmap.getLookupTable(nPts=256)
-        self._gradient = cmap.getGradient()
+        return pg.ColorMap(positions, colors)
 
     def init_ui(self):
         self.widget = QtWidgets.QWidget()
@@ -166,6 +165,9 @@ class BeamDisplay(QtWidgets.QMainWindow):
         self.fps = QtGui.QLabel()
         self.cps = QtGui.QLabel()
 
+        #
+        # Add the widgets to their layouts
+        #
         self.param_layout = QtWidgets.QFormLayout()
         self.param_layout.addRow(QtGui.QLabel("Beam Parameters"))
         self.param_layout.addRow(QtGui.QLabel("(all radii are 1/e^2)"))
@@ -201,6 +203,9 @@ class BeamDisplay(QtWidgets.QMainWindow):
         self.info_pane.setLayout(self.info_pane_layout)
 
     def init_graphics(self):
+        # Graphics layout object to place viewboxes in
+        self.g_layout = pg.GraphicsLayoutWidget(border=(80, 80, 80))
+
         m, n = 1280, 1024
         self.image = pg.ImageItem(np.zeros((m,n)))
         self.zoom = pg.ImageItem(np.zeros((50,50)))
@@ -210,23 +215,60 @@ class BeamDisplay(QtWidgets.QMainWindow):
         self.y_fit = pg.PlotDataItem(np.zeros(n), pen={'width':2})
         self.y_slice = pg.PlotDataItem(np.zeros(n), pen=None, symbol='o', pxMode=True, symbolSize=4)
 
-
-        self.g_layout = pg.GraphicsLayoutWidget(border=(80, 80, 80))
-
+        # Viewboxes for images
+        # aspect locked so that pixels are square
+        # y inverted so that (0,0) is top left as in Thorlabs software
         options = {"lockAspect":True, "invertY":True}
         self.vb_image = self.g_layout.addViewBox(row=0, col=0, rowspan=2, **options)
         self.vb_zoom = self.g_layout.addViewBox(row=0, col=2, **options)
         self.vb_residuals = self.g_layout.addViewBox(row=1, col=2, **options)
 
-        self.update_LUT()
+        # Only the residuals have any sort of false color - initialise the
+        # lookup table and the legend
+        cmap = self.get_color_map()
+        self.residual_LUT = cmap.getLookupTable(nPts=256)
         self.res_legend = pg.GradientLegend((10,255),(0, 20))
-        self.res_legend.setGradient(self._gradient)
+        self.res_legend.setGradient(cmap.getGradient())
         self.res_legend.setParentItem(self.vb_residuals)
 
-        options = {"invertY":True, "enableMouse":False, "enableMenu": False}
-        self.vb_x = self.g_layout.addViewBox(row=2, col=0, **options)
-        self.vb_y = self.g_layout.addViewBox(row=0, col=1, rowspan=2, **options)
+        # Centroid position markers in main image, aligned with x,y
+        pen = pg.mkPen('y')
+        self.fit_v_line = pg.InfiniteLine(pos=1, angle=90, pen=pen)
+        self.fit_h_line = pg.InfiniteLine(pos=1, angle=0, pen=pen)
 
+        # Centroid position markers in zoomed image, aligned with beam
+        # ellipse axes
+        zoom_centre = QtCore.QPointF(25,25)
+        self.fit_maj_line = pg.InfiniteLine(pos=zoom_centre, angle=90, pen=pen)
+        self.fit_min_line = pg.InfiniteLine(pos=zoom_centre, angle=0, pen=pen)
+
+        # Shows 1/e^2 ellipse of beam
+        self.isocurve = pg.IsocurveItem(pen=pen)
+        self.isocurve.setParentItem(self.zoom)
+
+        # Viewboxes for slice data
+        # Both boxes have mouse disabled - range is fixed so we don't want to
+        # scale them accidentally
+        # Y box has y inverted to match the main image
+        # Y box has x inverted so that zero pixel value is far from the image
+        options = {"enableMouse":False, "enableMenu": False}
+        self.vb_x = self.g_layout.addViewBox(row=2, col=0, **options)
+        self.vb_y = self.g_layout.addViewBox(row=0, col=1, rowspan=2,
+            invertX=True, invertY=True, **options)
+
+        # Link the slice axes to the main image so that when we zoom/pan the
+        # main image, our slices zoom/pan also
+        self.vb_x.setXLink(self.vb_image)
+        self.vb_y.setYLink(self.vb_image)
+
+        # Disable autoscaling and fix range to maximum pixel intensity
+        self.vb_x.setRange(yRange=(0,255))
+        self.vb_y.setRange(xRange=(0,255))
+        self.vb_x.disableAutoRange(axis=self.vb_x.YAxis)
+        self.vb_y.disableAutoRange(axis=self.vb_y.XAxis)
+
+        # Background color must not be black so that we can see where images
+        # start/end
         color = pg.mkColor(40,40,40)
         self.vb_image.setBackgroundColor(color)
         self.vb_zoom.setBackgroundColor(color)
@@ -234,20 +276,6 @@ class BeamDisplay(QtWidgets.QMainWindow):
         self.vb_x.setBackgroundColor(color)
         self.vb_y.setBackgroundColor(color)
         self.g_layout.setBackground(color)
-
-        fit_pen = pg.mkPen('y')
-        self.fit_v_line = pg.InfiniteLine(pos=1, angle=90, pen=fit_pen)
-        self.fit_h_line = pg.InfiniteLine(pos=1, angle=0, pen=fit_pen)
-        zoom_centre = QtCore.QPointF(25,25)
-        self.fit_maj_line = pg.InfiniteLine(pos=zoom_centre, pen=pg.mkPen('g'))
-        self.fit_min_line = pg.InfiniteLine(pos=zoom_centre, pen=pg.mkPen('r'))
-        self.isocurve = pg.IsocurveItem(pen=fit_pen)
-        self.isocurve.setParentItem(self.zoom)
-
-        self.res_label = QtGui.QGraphicsSimpleTextItem(r"")
-        self.res_label.setFont(QtGui.QFont("", 10))
-        self.res_label.setBrush(pg.mkBrush((200,200,200)))
-        self.res_label.setScale(0.2)
 
         self.vb_image.addItem(self.image)
         self.vb_image.addItem(self.fit_v_line)
@@ -261,7 +289,6 @@ class BeamDisplay(QtWidgets.QMainWindow):
         self.vb_zoom.addItem(self.fit_maj_line)
         self.vb_zoom.addItem(self.fit_min_line)
         self.vb_residuals.addItem(self.residuals)
-        self.vb_residuals.addItem(self.res_label)
         self.vb_x.addItem(self.x_slice)
         self.vb_x.addItem(self.x_fit)
         self.vb_y.addItem(self.y_slice)
@@ -271,13 +298,9 @@ class BeamDisplay(QtWidgets.QMainWindow):
         self.vb_zoom.setRange(QtCore.QRectF(0, 0, 50, 50))
         self.vb_residuals.setRange(QtCore.QRectF(0, 0, 50, 50))
 
-        self.vb_x.setXLink(self.vb_image)
-        self.vb_y.setYLink(self.vb_image)
-        self.vb_x.setRange(yRange=(0,255))
-        self.vb_y.setRange(xRange=(0,255))
-        self.vb_x.disableAutoRange(axis=self.vb_x.YAxis)
-        self.vb_y.disableAutoRange(axis=self.vb_y.XAxis)
-
+        #
+        # Size hints below here
+        #
         self.g_layout.ci.layout.setColumnStretchFactor(0, 4)
         self.g_layout.ci.layout.setColumnStretchFactor(1, 1)
         self.g_layout.ci.layout.setColumnStretchFactor(2, 2)

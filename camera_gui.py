@@ -427,12 +427,12 @@ def zmq_setup(ctx, server, port):
     return sock
 
 
-def remote(server, ctl_port, zmq_port):
+def remote(args):
     ### Remote operation ###
-    camera = Client(server, ctl_port)
+    camera = Client(args.server, args.artiq_port)
     b = BeamDisplay(camera)
     ctx = zmq.Context()
-    sock = zmq_setup(ctx, server, zmq_port)
+    sock = zmq_setup(ctx, args.server, args.zmq_port)
 
     def qt_update():
         try:
@@ -447,7 +447,7 @@ def remote(server, ctl_port, zmq_port):
     timer.start(50) # timeout ms
 
 
-def local():
+def local(args):
     ### Local operation ###
     camera = Dummy()
     b = BeamDisplay(camera)
@@ -456,17 +456,26 @@ def local():
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--server", "-s", type=str, required=True)
-    parser.add_argument("--ctl-port", "-p", type=int, default=4000)
-    parser.add_argument("--zmq-port", "-z", type=int, default=5555)
+    subparsers = parser.add_subparsers()
+
+    remote_parser = subparsers.add_parser("remote",
+        help="connect to a camera providing a ZMQ/Artiq network interface")
+    remote_parser.add_argument("--server", "-s", type=str, required=True)
+    remote_parser.add_argument("--artiq-port", "-p", type=int, default=4000)
+    remote_parser.add_argument("--zmq-port", "-z", type=int, default=5555)
+    remote_parser.set_defaults(func=remote)
+
+    local_parser = subparsers.add_parser("local",
+        help="connect to a local Thorlabs CMOS camera")
+    local_parser.add_argument("--device", "-d", type=int, required=True,
+        help="camera serial number")
+    local_parser.set_defaults(func=local)
 
     args = parser.parse_args()
 
     app = QtWidgets.QApplication(sys.argv)
-    loop = QEventLoop(app)
-    asyncio.set_event_loop(loop)
 
-    remote(args.server, args.ctl_port, args.zmq_port)
+    args.func(args)
 
     sys.exit(app.exec_())
 
@@ -480,4 +489,4 @@ def test():
 
 
 if __name__ == "__main__":
-    test()
+    main()

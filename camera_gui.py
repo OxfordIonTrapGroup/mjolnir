@@ -47,12 +47,22 @@ class _Worker(QtCore.QObject):
 
         im_fit = GaussianBeam.f(pxcrop, p)
         im_residuals = im_crop - im_fit
+
+        # residual_max becomes 255
+        # -residual_max becomes 0
         residual_max = np.amax(np.abs(im_residuals))
         residual_scale = 2 * residual_max/255
+        residual_fraction = residual_max/np.amax(im_fit)
         # currently residuals is on [-255.,255.] and also is float
         # need ints on [0,255]
-        im_res = 128 + (im_residuals / 2)
+        im_res = 127.5 + (im_residuals / residual_scale)
         im_res = np.clip(im_res, 0, 255).astype(int)
+
+        # 5 tick legend for residuals
+        legend = {"{:.1f}%".format(100*frac):val
+                  for (frac, val) in zip(
+                      np.linspace(-residual_fraction, residual_fraction, 5),
+                      np.linspace(0, 1, 5))}
 
         # just in case max pixel is not exactly centred
         px_x0 = np.unravel_index(np.argmax(im_fit), im_fit.shape)
@@ -76,8 +86,10 @@ class _Worker(QtCore.QObject):
             'im_crop': im_crop,
             'im_fit': im_fit,
             'im_res': im_res,
+            'legend': legend,
             'residual_max': residual_max,
             'residual_scale': residual_scale,
+            'residual_fraction': residual_fraction,
             'x' : x,
             'x_slice': x_slice,
             'x_fit': x_fit,
@@ -159,8 +171,10 @@ class BeamDisplay(QtWidgets.QMainWindow):
         self.zoom.setImage(up['im_crop'], **options)
         self.residuals.setImage(up['im_res'], lut=self.residual_LUT, **options)
 
-        self._residual_scale = up['residual_scale']
-        self.res_label.setText("{:.1f}%".format(self._residual_scale*100))
+        self._residual_fraction = up['residual_fraction']
+        self.res_label.setText("{:.1f}%".format(self._residual_fraction*100))
+        self.res_legend.setLabels(up['legend'])
+
 
         self.x_slice.setData(up['x'], up['x_slice'])
         self.x_fit.setData(up['x'], up['x_fit'])
@@ -191,7 +205,7 @@ class BeamDisplay(QtWidgets.QMainWindow):
         self.x_centroid.setText(px_string(up['x0'][0]))
         self.y_centroid.setText(px_string(up['x0'][1]))
         self.ellipticity.setText("{:.3f}".format(up['e']))
-        self.residual_max.setText("{:.1f}".format(up['residual_max']))
+        # self.residual_max.setText("{:.1f}".format(up['residual_max']))
 
         now = pg.ptime.time()
         dt = now - self._last_update
@@ -219,7 +233,7 @@ class BeamDisplay(QtWidgets.QMainWindow):
     def _aoi_cb(self):
         pass
 
-    def update_LUT(self, scale):
+    def update_LUT(self):
         # Colour map for residuals is transparent when residual is zero
         colors = np.array([
             (0, 255, 255, 255),
@@ -228,11 +242,13 @@ class BeamDisplay(QtWidgets.QMainWindow):
             (255, 0, 0, 191),
             (255, 255, 0, 255)
         ], dtype=np.uint8)
-        positions = [0.5 * (1 + 0.5 * scale * i) for i in range(-2,3)]
-        self.residual_LUT = pg.ColorMap(positions, colors).getLookupTable(nPts=256)
+        positions = [0.25 * (2 + i) for i in range(-2,3)]
+        cmap = pg.ColorMap(positions, colors)
+        self.residual_LUT = cmap.getLookupTable(nPts=256)
+        self._gradient = cmap.getGradient()
 
-    def rescale_LUT(self):
-        self.residual_sf.setValue(self._residual_scale)
+    # def rescale_LUT(self):
+    #     self.residual_sf.setValue(self._residual_scale)
 
     def init_ui(self):
         self.widget = QtWidgets.QWidget()
@@ -270,15 +286,15 @@ class BeamDisplay(QtWidgets.QMainWindow):
         self.x_centroid = QtGui.QLabel()
         self.y_centroid = QtGui.QLabel()
 
-        self.residual_max = QtGui.QLabel()
-        self.residual_rescale = QtGui.QPushButton("Rescale")
-        self.residual_rescale.clicked.connect(self.rescale_LUT)
-        self.residual_sf = QtGui.QDoubleSpinBox()
-        self.residual_sf.setRange(0.01, 1.)
-        self.residual_sf.setSingleStep(0.05)
-        self.residual_sf.valueChanged.connect(self.update_LUT)
+        # self.residual_max = QtGui.QLabel()
+        # self.residual_rescale = QtGui.QPushButton("Rescale")
+        # self.residual_rescale.clicked.connect(self.rescale_LUT)
+        # self.residual_sf = QtGui.QDoubleSpinBox()
+        # self.residual_sf.setRange(0.01, 1.)
+        # self.residual_sf.setSingleStep(0.05)
+        # self.residual_sf.valueChanged.connect(self.update_LUT)
         # deliberately afterwards to force update of lookup
-        self.residual_sf.setValue(0.1)
+        # self.residual_sf.setValue(0.1)
 
         self.fps = QtGui.QLabel()
         self.cps = QtGui.QLabel()
@@ -311,9 +327,9 @@ class BeamDisplay(QtWidgets.QMainWindow):
         self.info_pane_layout.addStretch(1)
         self.info_pane_layout.addWidget(self.param_widget)
         self.info_pane_layout.addStretch(1)
-        self.info_pane_layout.addWidget(self.residual_max)
-        self.info_pane_layout.addWidget(self.residual_rescale)
-        self.info_pane_layout.addWidget(self.residual_sf)
+        # self.info_pane_layout.addWidget(self.residual_max)
+        # self.info_pane_layout.addWidget(self.residual_rescale)
+        # self.info_pane_layout.addWidget(self.residual_sf)
         self.info_pane_layout.addStretch(3)
         self.info_pane_layout.addWidget(self.fps)
         self.info_pane_layout.addWidget(self.cps)
@@ -322,15 +338,15 @@ class BeamDisplay(QtWidgets.QMainWindow):
         self.info_pane.setLayout(self.info_pane_layout)
 
     def init_graphics(self):
-        # images
-        img = np.zeros((2,2))
-        self.image = pg.ImageItem(img)
-        self.zoom = pg.ImageItem(img)
-        self.residuals = pg.ImageItem(img)
-        self.x_fit = pg.PlotDataItem(np.zeros(2), pen={'width':2})
-        self.x_slice = pg.PlotDataItem(np.zeros(2), pen=None, symbol='o', pxMode=True, symbolSize=4)
-        self.y_fit = pg.PlotDataItem(np.zeros(2), pen={'width':2})
-        self.y_slice = pg.PlotDataItem(np.zeros(2), pen=None, symbol='o', pxMode=True, symbolSize=4)
+        m, n = 1280, 1024
+        self.image = pg.ImageItem(np.zeros((m,n)))
+        self.zoom = pg.ImageItem(np.zeros((50,50)))
+        self.residuals = pg.ImageItem(np.zeros((50,50)))
+        self.x_fit = pg.PlotDataItem(np.zeros(m), pen={'width':2})
+        self.x_slice = pg.PlotDataItem(np.zeros(m), pen=None, symbol='o', pxMode=True, symbolSize=4)
+        self.y_fit = pg.PlotDataItem(np.zeros(n), pen={'width':2})
+        self.y_slice = pg.PlotDataItem(np.zeros(n), pen=None, symbol='o', pxMode=True, symbolSize=4)
+
 
         self.g_layout = pg.GraphicsLayoutWidget(border=(80, 80, 80))
 
@@ -338,6 +354,14 @@ class BeamDisplay(QtWidgets.QMainWindow):
         self.vb_image = self.g_layout.addViewBox(row=0, col=0, rowspan=2, **options)
         self.vb_zoom = self.g_layout.addViewBox(row=0, col=2, **options)
         self.vb_residuals = self.g_layout.addViewBox(row=1, col=2, **options)
+
+        self.update_LUT()
+        self.res_legend = pg.GradientLegend((10,255),(0, 20))
+        self.res_legend.setGradient(self._gradient)
+        self.res_legend.setParentItem(self.vb_residuals)
+
+        # options = {"invertY":True, "enableMouse":False, "enableMenu": False}
+        # self.vb_resmap = self.g_layout.addViewBox(row=2, col=2, **options)
 
         options = {"invertY":True, "enableMouse":False, "enableMenu": False}
         self.vb_x = self.g_layout.addViewBox(row=2, col=0, **options)
@@ -454,6 +478,12 @@ def local(args):
     camera.register_callback(lambda im: b.queue_image(im))
 
 
+def test(args):
+    camera = Dummy()
+    b = BeamDisplay(camera)
+    camera.register_callback(lambda im: b.queue_image(im))
+
+
 def get_parser():
     parser = argparse.ArgumentParser()
     subparsers = parser.add_subparsers()
@@ -471,6 +501,10 @@ def get_parser():
         help="camera serial number")
     local_parser.set_defaults(func=local)
 
+    test_parser = subparsers.add_parser("test",
+        help="dummy camera for testing")
+    test_parser.set_defaults(func=test)
+
     return parser
 
 
@@ -483,13 +517,5 @@ def main():
     sys.exit(app.exec_())
 
 
-def test():
-    app  = QtWidgets.QApplication(sys.argv)
-
-    local(None)
-
-    sys.exit(app.exec_())
-
-
 if __name__ == "__main__":
-    test()
+    main()

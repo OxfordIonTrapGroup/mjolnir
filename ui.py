@@ -68,10 +68,13 @@ class BeamDisplay(QtWidgets.QMainWindow):
         point = QtCore.QPointF(*up['x0'])
         self.fit_v_line.setValue(point)
         self.fit_h_line.setValue(point)
+
+        nopen = pg.mkPen(style=QtCore.Qt.NoPen)
         self.history.append(up['x0'])
         self.history_plot.setData(
             pos=self.history,
-            brush=self.history_brushes[:len(self.history)])
+            pen=nopen,
+            brush=self.history_brushes[-len(self.history):])
 
         # 'centre' is a QPointF
         self.fit_maj_line.setValue(up['zoom_centre'])

@@ -19,6 +19,13 @@ class Dummy:
         space = np.linspace(0, 2*np.pi, num=10, endpoint=False)
         centroids = np.array([200 + 100*np.sin(space), 400 + 200*np.cos(space)])
         frames = [generate_image(c) for c in centroids.T]
+
+        # generate smaller images to see if calculation is limiting factor
+        # (it is by far the limiting factor)
+        # centroids = np.array([20 + 10*np.sin(space), 20+0*np.cos(space)])
+        # frames = [generate(centroid=c, cov=[[4,0],[0,4]], m=50, n=50)
+        #           for c in centroids.T]
+
         self._framegen = itertools.cycle(frames)
         self._frame = None
         self.quit = False

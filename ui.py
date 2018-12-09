@@ -62,13 +62,15 @@ class BeamDisplay(QtWidgets.QMainWindow):
 
         # cache the centroid in case we need to set a mark
         self._centre = up['x0']
-        self.fit_v_line.setValue(up['x0'][0])
-        self.fit_h_line.setValue(up['x0'][1])
+
+        # Sub-pixel position works with QPointF
+        point = QtCore.QPointF(*up['x0'])
+        self.fit_v_line.setValue(point)
+        self.fit_h_line.setValue(point)
 
         # 'centre' is a QPointF
-        # Sub-pixel position is allowed but ignored
         self.fit_maj_line.setValue(up['zoom_centre'])
-        self.fit_maj_line.setValue(up['zoom_centre'])
+        self.fit_min_line.setValue(up['zoom_centre'])
         self.fit_maj_line.setAngle(up['semimaj_angle'])
         self.fit_min_line.setAngle(up['semimin_angle'])
 
@@ -119,8 +121,9 @@ class BeamDisplay(QtWidgets.QMainWindow):
 
     def mark_cb(self):
         self._mark = self._centre
-        self.mark_v_line.setValue(self._mark[0])
-        self.mark_h_line.setValue(self._mark[1])
+        point = QtCore.QPointF(*self._mark)
+        self.mark_v_line.setValue(point)
+        self.mark_h_line.setValue(point)
         self.mark_v_line.show()
         self.mark_h_line.show()
 

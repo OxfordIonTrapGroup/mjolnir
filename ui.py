@@ -68,6 +68,10 @@ class BeamDisplay(QtWidgets.QMainWindow):
         point = QtCore.QPointF(*up['x0'])
         self.fit_v_line.setValue(point)
         self.fit_h_line.setValue(point)
+        self.history.append(up['x0'])
+        self.history_plot.setData(
+            pos=self.history,
+            brush=self.history_brushes[:len(self.history)])
 
         # 'centre' is a QPointF
         self.fit_maj_line.setValue(up['zoom_centre'])
@@ -274,6 +278,14 @@ class BeamDisplay(QtWidgets.QMainWindow):
         self.fit_v_line = pg.InfiniteLine(pos=1, angle=90, pen=ypen)
         self.fit_h_line = pg.InfiniteLine(pos=1, angle=0, pen=ypen)
 
+        # Plot fading recent position markers
+        n_history = 5
+        self.history = deque(maxlen=n_history)
+        self.history_plot = pg.ScatterPlotItem()
+        self.history_brushes = [pg.mkBrush(
+            color=(255,255,0,int((i+1)*255/n_history)))
+            for i in range(n_history)]
+
         # User marked position
         self.mark_v_line = pg.InfiniteLine(pos=1, angle=90, pen=rpen)
         self.mark_h_line = pg.InfiniteLine(pos=1, angle=0, pen=rpen)
@@ -327,6 +339,7 @@ class BeamDisplay(QtWidgets.QMainWindow):
         self.vb_image.addItem(self.fit_h_line)
         self.vb_image.addItem(self.mark_v_line)
         self.vb_image.addItem(self.mark_h_line)
+        self.vb_image.addItem(self.history_plot)
         # Figure out how to overlay properly?
         # self.vb_image.addItem(self.x_slice)
         # self.vb_image.addItem(self.x_fit)

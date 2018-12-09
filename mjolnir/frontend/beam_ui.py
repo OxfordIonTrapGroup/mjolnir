@@ -32,6 +32,7 @@ class BeamDisplay(QtWidgets.QMainWindow):
         self._fps = None
         self._last_update = QtCore.QTime.currentTime()
         self._mark = None
+        self._residual_levels = [-10,10]
 
         self.init_ui()
         self.show()
@@ -53,7 +54,6 @@ class BeamDisplay(QtWidgets.QMainWindow):
         self.image.setImage(up['im'], **options)
         self.zoom.setImage(up['im_crop'], **options)
         self.residuals.setImage(up['im_res'], lut=self.residual_LUT, **options)
-        self.res_legend.setLabels(up['legend'])
 
         self.x_slice.setData(up['x'], up['x_slice'])
         self.x_fit.setData(up['x'], up['x_fit'])
@@ -253,6 +253,7 @@ class BeamDisplay(QtWidgets.QMainWindow):
         self.image = pg.ImageItem(np.zeros((m,n)))
         self.zoom = pg.ImageItem(np.zeros((50,50)))
         self.residuals = pg.ImageItem(np.zeros((50,50)))
+        self.residuals.setLevels(self._residual_levels)
         self.x_fit = pg.PlotDataItem(np.zeros(m), pen={'width':2})
         self.x_slice = pg.PlotDataItem(np.zeros(m), pen=None, symbol='o', pxMode=True, symbolSize=4)
         self.y_fit = pg.PlotDataItem(np.zeros(n), pen={'width':2})
@@ -273,6 +274,11 @@ class BeamDisplay(QtWidgets.QMainWindow):
         self.res_legend = pg.GradientLegend((10,255),(0, 20))
         self.res_legend.setGradient(cmap.getGradient())
         self.res_legend.setParentItem(self.vb_residuals)
+        n_ticks = 5
+        self.res_legend.setLabels({"{}".format(level):val
+            for (level, val) in zip(
+                np.linspace(*self._residual_levels, n_ticks),
+                np.linspace(0, 1, n_ticks))})
 
         ypen = pg.mkPen(color=(255,255,0,85), width=3)
         rpen = pg.mkPen(color=(255,0,0,127), width=3, style=QtCore.Qt.DotLine)

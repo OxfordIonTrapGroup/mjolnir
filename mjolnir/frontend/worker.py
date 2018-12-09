@@ -35,23 +35,10 @@ class Worker(QtCore.QObject):
         pxcrop, im_crop = GaussianBeam.crop(pxmap, im, p['x0'], region)
 
         im_fit = GaussianBeam.f(pxcrop, p)
-        im_residuals = im_crop - im_fit
+        im_res = im_crop - im_fit
 
-        r_max = np.amax(np.abs(im_residuals))
-        r_scale = 2 * r_max/255
-        r_fraction = r_max/np.amax(im_fit)
-        # currently residuals is on [-255.,255.] and also is float
-        # need ints on [0,255]
-        # autoscale to make best use of our colour map
-        im_res = 127.5 + (im_residuals / r_scale)
-        im_res = np.clip(im_res, 0, 255).astype(int)
-
-        # legend for residuals
-        nticks = 5
-        legend = {"{:.1f}%".format(100*frac):val
-                  for (frac, val) in zip(
-                      np.linspace(-r_fraction, r_fraction, nticks),
-                      np.linspace(0, 1, nticks))}
+        r_max = np.amax(np.abs(im_res))
+        res_fraction = r_max/np.amax(im_fit)
 
         zoom_origin = pxcrop[:,0,0]
         # just in case max pixel is not exactly centred
@@ -76,7 +63,7 @@ class Worker(QtCore.QObject):
             'im_crop': im_crop,
             'im_fit': im_fit,
             'im_res': im_res,
-            'legend': legend,
+            'res_fraction': res_fraction,
             'x': x,
             'x_slice': x_slice,
             'x_fit': x_fit,

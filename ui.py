@@ -112,10 +112,6 @@ class BeamDisplay(QtWidgets.QMainWindow):
         self.exposure.setSingleStep(step)
         self.exposure.setValue(val)
 
-    def exposure_cb(self):
-        exp = self.exposure.value()
-        self.cam.set_exposure_ms(exp)
-
     def aoi_cb(self):
         pass
 
@@ -170,15 +166,15 @@ class BeamDisplay(QtWidgets.QMainWindow):
         self.single = QtGui.QPushButton("Single Acquisition")
         self.start = QtGui.QPushButton("Start Acquisition")
         self.stop = QtGui.QPushButton("Stop Acquisition")
-        self.single.clicked.connect(lambda: self.cam.single_acquisition())
-        self.start.clicked.connect(lambda: self.cam.start_acquisition())
-        self.stop.clicked.connect(lambda: self.cam.stop_acquisition())
+        self.single.clicked.connect(self.cam.single_acquisition)
+        self.start.clicked.connect(self.cam.start_acquisition)
+        self.stop.clicked.connect(self.cam.stop_acquisition)
 
         self.exposure = QtGui.QDoubleSpinBox()
         self.exposure.setSuffix(" ms")
         self.get_exposure_params()
         # connect after finding params so we don't send accidental update
-        self.exposure.valueChanged.connect(self.exposure_cb)
+        self.exposure.valueChanged.connect(self.cam.set_exposure_ms)
 
         self.maj_radius = QtGui.QLabel()
         self.min_radius = QtGui.QLabel()

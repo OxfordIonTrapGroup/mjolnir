@@ -64,7 +64,6 @@ class Worker(QtCore.QObject):
         y_slice = im[px_x0[0],:]
         y_fit = GaussianBeam.f(pxmap[:,px_x0[0],:],p)
 
-        # Subpixel position allowed but ignored
         zoom_centre = QtCore.QPointF(*(p['x0']-pxcrop[:,0,0]))
 
         iso_level = np.amax(im_fit) / np.exp(2)

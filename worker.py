@@ -51,9 +51,10 @@ class Worker(QtCore.QObject):
                       np.linspace(-r_fraction, r_fraction, nticks),
                       np.linspace(0, 1, nticks))}
 
+        zoom_origin = pxcrop[:,0,0]
         # just in case max pixel is not exactly centred
         px_x0 = np.unravel_index(np.argmax(im_fit), im_fit.shape)
-        px_x0 += pxcrop[:,0,0]
+        px_x0 += zoom_origin
 
         x = pxmap[0,:,0]
         x_slice = im[:,px_x0[1]]
@@ -63,28 +64,33 @@ class Worker(QtCore.QObject):
         y_slice = im[px_x0[0],:]
         y_fit = GaussianBeam.f(pxmap[:,px_x0[0],:],p)
 
-        # I think sub-pixel position is allowed?
-        centre = QtCore.QPointF(*(p['x0']-pxcrop[:,0,0]))
+        # Subpixel position allowed but ignored
+        zoom_centre = QtCore.QPointF(*(p['x0']-pxcrop[:,0,0]))
 
         iso_level = np.amax(im_fit) / np.exp(2)
 
+        # construct our update dictionary
         update = {
             'im': im,
             'im_crop': im_crop,
             'im_fit': im_fit,
             'im_res': im_res,
             'legend': legend,
-            'x' : x,
+            'x': x,
             'x_slice': x_slice,
             'x_fit': x_fit,
-            'y' : y,
+            'y': y,
             'y_slice': y_slice,
             'y_fit': y_fit,
-            'centre': centre,
+            'zoom_origin': zoom_origin,
+            'zoom_centre': zoom_centre,
             'iso_level': iso_level
         }
+
+        # add all the fit parameters to the update
         update.update(p)
 
+        # calulate number of updates per second
         now = QtCore.QTime.currentTime()
         dt = float(self._last_update.msecsTo(now))/1000
         self._last_update = now

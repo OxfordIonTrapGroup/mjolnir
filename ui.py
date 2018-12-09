@@ -4,6 +4,7 @@ from PyQt5 import QtGui, QtWidgets, QtCore
 from collections import deque
 
 from worker import Worker
+import tools
 
 
 class BeamDisplay(QtWidgets.QMainWindow):
@@ -29,7 +30,7 @@ class BeamDisplay(QtWidgets.QMainWindow):
         self.thread.start()
 
         self._fps = None
-        self._last_update = pg.ptime.time()
+        self._last_update = QtCore.QTime.currentTime()
         self._mark = None
 
         self.init_ui()
@@ -94,15 +95,8 @@ class BeamDisplay(QtWidgets.QMainWindow):
             self.x_delta.setText(px_string(delta[0]))
             self.y_delta.setText(px_string(delta[1]))
 
-        now = pg.ptime.time()
-        dt = now - self._last_update
-        self._last_update = now
-        if self._fps is None:
-            self._fps = 1.0 / dt
-        else:
-            s = np.clip(dt*3., 0, 1)
-            self._fps = self._fps * (1-s) + (1.0/dt) * s
-
+        self._last_update, self._fps = tools.update_rate(
+            self._last_update, self._fps)
         self.fps.setText("{:.1f} fps".format(self._fps))
         self.cps.setText("{:.1f} cps".format(up['cps']))
 

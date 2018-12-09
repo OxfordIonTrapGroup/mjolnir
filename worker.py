@@ -1,6 +1,7 @@
 import numpy as np
 from PyQt5 import QtCore
 from new_image_tools import GaussianBeam
+import tools
 
 
 class Worker(QtCore.QObject):
@@ -90,15 +91,8 @@ class Worker(QtCore.QObject):
         update.update(p)
 
         # calulate number of updates per second
-        now = QtCore.QTime.currentTime()
-        dt = float(self._last_update.msecsTo(now))/1000
-        self._last_update = now
-        if self._cps is None:
-            self._cps = 1.0 / dt
-        else:
-            s = np.clip(dt*3., 0, 1)
-            self._cps = self._cps * (1-s) + (1.0/dt) * s
-
+        self._last_update, self._cps = tools.update_rate(
+            self._last_update, self._cps)
         update['cps'] = self._cps
 
         self.updateq.append(update)

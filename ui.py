@@ -36,7 +36,7 @@ class BeamDisplay(QtWidgets.QMainWindow):
         self.init_ui()
         self.show()
 
-    @QtCore.pyqtSlot()
+    @QtCore.pyqtSlot(np.ndarray)
     def queue_image(self, im):
         """Queues an image for fitting and plotting"""
         self.imageq.append(im)

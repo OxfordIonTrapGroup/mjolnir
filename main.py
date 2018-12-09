@@ -6,6 +6,7 @@ from PyQt5 import QtWidgets, QtCore
 from artiq.protocols.pc_rpc import Client
 from ui import BeamDisplay
 from dummy_zmq import Dummy
+from dummy_cam import Dummy as DummyCam
 
 
 def zmq_setup(ctx, server, port):
@@ -40,15 +41,19 @@ def remote(args):
 
 def local(args):
     ### Local operation ###
+    pass
+
+
+def test_dummy(args):
     camera = Dummy()
     b = BeamDisplay(camera)
     camera.register_callback(lambda im: b.queue_image(im))
 
 
-def test(args):
-    camera = Dummy()
+def test_dummy_cam(args):
+    camera = DummyCam()
     b = BeamDisplay(camera)
-    camera.register_callback(lambda im: b.queue_image(im))
+    camera.new_image.connect(b.queue_image)
 
 
 def get_parser():
@@ -70,7 +75,7 @@ def get_parser():
 
     test_parser = subparsers.add_parser("test",
         help="dummy camera for testing")
-    test_parser.set_defaults(func=test)
+    test_parser.set_defaults(func=test_dummy_cam)
 
     return parser
 

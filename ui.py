@@ -30,10 +30,7 @@ class BeamDisplay(QtWidgets.QMainWindow):
 
         self._fps = None
         self._last_update = pg.ptime.time()
-
-        # difference between most positive and most negative
-        # residuals in units of full scale
-        self._residual_scale = 0.05
+        self._mark = None
 
         self.init_ui()
         self.show()
@@ -63,13 +60,15 @@ class BeamDisplay(QtWidgets.QMainWindow):
         self.y_slice.setData(up['y_slice'], up['y'])
         self.y_fit.setData(up['y_fit'], up['y'])
 
+        # cache the centroid in case we need to set a mark
+        self._centre = up['x0']
         self.fit_v_line.setValue(up['x0'][0])
         self.fit_h_line.setValue(up['x0'][1])
 
         # 'centre' is a QPointF
         # Sub-pixel position is allowed but ignored
-        self.fit_maj_line.setValue(up['centre'])
-        self.fit_maj_line.setValue(up['centre'])
+        self.fit_maj_line.setValue(up['zoom_centre'])
+        self.fit_maj_line.setValue(up['zoom_centre'])
         self.fit_maj_line.setAngle(up['semimaj_angle'])
         self.fit_min_line.setAngle(up['semimin_angle'])
 
@@ -88,6 +87,11 @@ class BeamDisplay(QtWidgets.QMainWindow):
         self.y_centroid.setText(px_string(up['x0'][1]))
         self.ellipticity.setText("{:.3f}".format(up['e']))
 
+        if self._mark is not None:
+            delta = up['x0'] - self._mark
+            self.x_delta.setText(px_string(delta[0]))
+            self.y_delta.setText(px_string(delta[1]))
+
         now = pg.ptime.time()
         dt = now - self._last_update
         self._last_update = now
@@ -99,7 +103,6 @@ class BeamDisplay(QtWidgets.QMainWindow):
 
         self.fps.setText("{:.1f} fps".format(self._fps))
         self.cps.setText("{:.1f} cps".format(up['cps']))
-
 
     def get_exposure_params(self):
         val, min_, max_, step = self.cam.get_exposure_params()
@@ -113,6 +116,27 @@ class BeamDisplay(QtWidgets.QMainWindow):
 
     def aoi_cb(self):
         pass
+
+    def mark_cb(self):
+        self._mark = self._centre
+        self.mark_v_line.setValue(self._mark[0])
+        self.mark_h_line.setValue(self._mark[1])
+        self.mark_v_line.show()
+        self.mark_h_line.show()
+
+        # Not ideal but don't want to duplicate px_string from update
+        # If the user is using in continuous mode they'll never notice...
+        self.x_delta.setText('')
+        self.y_delta.setText('')
+        self.x_delta.show()
+        self.y_delta.show()
+
+    def unmark_cb(self):
+        self._mark = None
+        self.mark_v_line.hide()
+        self.mark_h_line.hide()
+        self.x_delta.hide()
+        self.y_delta.hide()
 
     def get_color_map(self):
         # Colour map for residuals is transparent when residual is zero
@@ -162,6 +186,18 @@ class BeamDisplay(QtWidgets.QMainWindow):
         self.x_centroid = QtGui.QLabel()
         self.y_centroid = QtGui.QLabel()
 
+        # Mark current beam position
+        self.mark = QtGui.QPushButton("Mark")
+        self.unmark = QtGui.QPushButton("Unmark")
+        self.mark.clicked.connect(self.mark_cb)
+        self.unmark.clicked.connect(self.unmark_cb)
+
+        # Distance from marked location
+        self.x_delta = QtGui.QLabel()
+        self.y_delta = QtGui.QLabel()
+        self.x_delta.hide()
+        self.y_delta.hide()
+
         self.fps = QtGui.QLabel()
         self.cps = QtGui.QLabel()
 
@@ -183,6 +219,9 @@ class BeamDisplay(QtWidgets.QMainWindow):
         self.param_layout.addRow("X position:", self.x_centroid)
         self.param_layout.addRow("Y position:", self.y_centroid)
         self.param_layout.addRow(QtGui.QWidget())
+        self.param_layout.addRow(self.mark, self.unmark)
+        self.param_layout.addRow("ΔX:", self.x_delta)
+        self.param_layout.addRow("ΔY:", self.y_delta)
 
         self.param_widget = QtGui.QWidget()
         self.param_widget.setLayout(self.param_layout)
@@ -231,19 +270,28 @@ class BeamDisplay(QtWidgets.QMainWindow):
         self.res_legend.setGradient(cmap.getGradient())
         self.res_legend.setParentItem(self.vb_residuals)
 
+        ypen = pg.mkPen(color=(255,255,0,85), width=3)
+        rpen = pg.mkPen(color=(255,0,0,127), width=3, style=QtCore.Qt.DotLine)
+
         # Centroid position markers in main image, aligned with x,y
-        pen = pg.mkPen('y')
-        self.fit_v_line = pg.InfiniteLine(pos=1, angle=90, pen=pen)
-        self.fit_h_line = pg.InfiniteLine(pos=1, angle=0, pen=pen)
+        self.fit_v_line = pg.InfiniteLine(pos=1, angle=90, pen=ypen)
+        self.fit_h_line = pg.InfiniteLine(pos=1, angle=0, pen=ypen)
+
+        # User marked position
+        self.mark_v_line = pg.InfiniteLine(pos=1, angle=90, pen=rpen)
+        self.mark_h_line = pg.InfiniteLine(pos=1, angle=0, pen=rpen)
+        self.mark_v_line.hide()
+        self.mark_h_line.hide()
 
         # Centroid position markers in zoomed image, aligned with beam
         # ellipse axes
         zoom_centre = QtCore.QPointF(25,25)
-        self.fit_maj_line = pg.InfiniteLine(pos=zoom_centre, angle=90, pen=pen)
-        self.fit_min_line = pg.InfiniteLine(pos=zoom_centre, angle=0, pen=pen)
+        self.fit_maj_line = pg.InfiniteLine(pos=zoom_centre, angle=90, pen=ypen)
+        self.fit_min_line = pg.InfiniteLine(pos=zoom_centre, angle=0, pen=ypen)
 
         # Shows 1/e^2 ellipse of beam
-        self.isocurve = pg.IsocurveItem(pen=pen)
+        isopen = pg.mkPen(color=(255,255,0,85), width=3, style=QtCore.Qt.DotLine)
+        self.isocurve = pg.IsocurveItem(pen=isopen)
         self.isocurve.setParentItem(self.zoom)
 
         # Viewboxes for slice data
@@ -280,6 +328,8 @@ class BeamDisplay(QtWidgets.QMainWindow):
         self.vb_image.addItem(self.image)
         self.vb_image.addItem(self.fit_v_line)
         self.vb_image.addItem(self.fit_h_line)
+        self.vb_image.addItem(self.mark_v_line)
+        self.vb_image.addItem(self.mark_h_line)
         # Figure out how to overlay properly?
         # self.vb_image.addItem(self.x_slice)
         # self.vb_image.addItem(self.x_fit)

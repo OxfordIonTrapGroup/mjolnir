@@ -3,8 +3,8 @@ import numpy as np
 from PyQt5 import QtGui, QtWidgets, QtCore
 from collections import deque
 
-from worker import Worker
-import tools
+from mjolnir.frontend.worker import Worker
+from mjolnir.tools import tools
 
 
 class BeamDisplay(QtWidgets.QMainWindow):

@@ -1,12 +1,12 @@
 import zmq
 import sys
 import argparse
-
 from PyQt5 import QtWidgets, QtCore
 from artiq.protocols.pc_rpc import Client
-from ui import BeamDisplay
-from dummy_zmq import Dummy
-from dummy_cam import Dummy as DummyCam
+
+from mjolnir.frontend.beam_ui import BeamDisplay
+from mjolnir.test.dummy_zmq import Dummy
+from mjolnir.test.dummy_cam import Dummy as DummyCam
 
 
 def zmq_setup(ctx, server, port):

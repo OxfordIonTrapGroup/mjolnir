@@ -10,8 +10,9 @@ from quamash import QEventLoop
 from PyQt5 import QtCore
 from artiq.protocols.pc_rpc import simple_server_loop
 from artiq.tools import verbosity_args, simple_network_args, init_logger
-from image_test import generate_image
-import tools
+
+from mjolnir.test.image_test import generate_image
+from mjolnir.tools import tools
 
 logger = logging.getLogger(__name__)
 

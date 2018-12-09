@@ -1,7 +1,8 @@
 import numpy as np
 from PyQt5 import QtCore
-from new_image_tools import GaussianBeam
-import tools
+
+from mjolnir.tools.image_tools import GaussianBeam
+from mjolnir.tools import tools
 
 
 class Worker(QtCore.QObject):

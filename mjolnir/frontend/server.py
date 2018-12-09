@@ -6,7 +6,8 @@ import zmq
 
 from artiq.protocols.pc_rpc import simple_server_loop
 from artiq.tools import verbosity_args, simple_network_args, init_logger
-from camera_controller.camera_controller import ThorlabsCCD
+from mjolnir.drivers.camera import ThorlabsCCD
+
 
 def get_argparser():
     parser = argparse.ArgumentParser()

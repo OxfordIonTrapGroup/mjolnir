@@ -1,6 +1,4 @@
 import sys
-#pyqtgraph import needed to make QtGui import work...>
-import pyqtgraph as pg
 from PyQt5 import QtGui, QtWidgets, QtCore
 
 from mjolnir.frontend.gui import get_parser

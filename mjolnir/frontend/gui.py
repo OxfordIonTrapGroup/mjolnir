@@ -41,7 +41,7 @@ def remote(args):
 
 def local(args):
     ### Local operation ###
-    pass
+    test_dummy(args)
 
 
 def test_dummy(args):
@@ -75,7 +75,7 @@ def get_parser():
 
     test_parser = subparsers.add_parser("test",
         help="dummy camera for testing")
-    test_parser.set_defaults(func=test_dummy_cam)
+    test_parser.set_defaults(func=test_dummy)
 
     return parser
 

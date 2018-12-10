@@ -3,7 +3,7 @@ import numpy as np
 from PyQt5 import QtGui, QtWidgets, QtCore
 from collections import deque
 
-from mjolnir.frontend.worker import Worker
+from mjolnir.ui.worker import Worker
 from mjolnir.tools import tools
 
 

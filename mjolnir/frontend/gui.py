@@ -1,11 +1,12 @@
+#!/usr/bin/env python3.5
 import zmq
 import sys
 import argparse
 from PyQt5 import QtWidgets, QtCore
 from artiq.protocols.pc_rpc import Client
 
-from mjolnir.ui.beam_ui import BeamDisplay
-from mjolnir.test.dummy_zmq import Dummy
+from mjolnir.ui.beam import BeamDisplay
+from mjolnir.drivers.camera import ThorlabsCCD
 
 
 def zmq_setup(ctx, server, port):
@@ -40,22 +41,12 @@ def remote(args):
 
 def local(args):
     ### Local operation ###
-    test_dummy(args)
-
-
-def test_dummy(args):
-    camera = Dummy()
+    camera = ThorlabsCCD()
     b = BeamDisplay(camera)
     camera.register_callback(lambda im: b.queue_image(im))
 
 
-def test_dummy_cam(args):
-    camera = DummyCam()
-    b = BeamDisplay(camera)
-    camera.new_image.connect(b.queue_image)
-
-
-def get_parser():
+def get_argparser():
     parser = argparse.ArgumentParser(description="GUI for Thorlabs CMOS cameras")
     subparsers = parser.add_subparsers()
 
@@ -68,19 +59,15 @@ def get_parser():
 
     local_parser = subparsers.add_parser("local",
         help="connect directly to a local camera")
-    local_parser.add_argument("--device", "-d", type=int, required=True,
-        help="camera serial number")
+    local_parser.add_argument("--device", "-d", type=int, default=None,
+        help="camera serial number, uses first available if not supplied")
     local_parser.set_defaults(func=local)
-
-    test_parser = subparsers.add_parser("test",
-        help="dummy camera for testing")
-    test_parser.set_defaults(func=test_dummy)
 
     return parser
 
 
 def main():
-    parser = get_parser()
+    parser = get_argparser()
 
     args = parser.parse_args()
     app = QtWidgets.QApplication(sys.argv)

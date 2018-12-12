@@ -1,3 +1,4 @@
+#!/usr/bin/env python3.5
 import sys
 from PyQt5 import QtGui, QtWidgets, QtCore
 

@@ -1,6 +1,12 @@
 #!/usr/bin/env python3.5
+#
+# This was an attempt to build a QtCore-based camera, since
+# we have it at our disposal. It works fine as a server, but
+# for some reason crashes when used locally within the GUI.
+# Not quite abandoned, but certainly not at the forefront
+# of development priority.
+#
 import asyncio
-import argparse
 import sys
 import zmq
 import numpy as np
@@ -8,18 +14,20 @@ import itertools
 import logging
 from quamash import QEventLoop
 from PyQt5 import QtCore
-from artiq.protocols.pc_rpc import simple_server_loop
-from artiq.tools import verbosity_args, simple_network_args, init_logger
 
+from artiq.protocols.pc_rpc import simple_server_loop
+from artiq.tools import init_logger
+
+from mjolnir.frontend.server import get_argparser, create_zmq_server
 from mjolnir.test.image_test import generate_image
 from mjolnir.tools import tools
 
 logger = logging.getLogger(__name__)
 
-class Dummy(QtCore.QObject):
+class DummyQtCamera(QtCore.QObject):
     new_image = QtCore.pyqtSignal(np.ndarray)
 
-    def __init__(self):
+    def __init__(self, *args, **kwargs):
         super().__init__()
 
         space = np.linspace(0, 2*np.pi, num=10, endpoint=False)
@@ -95,22 +103,6 @@ class Dummy(QtCore.QObject):
         pass
 
 
-def get_argparser():
-    parser = argparse.ArgumentParser()
-    simple_network_args(parser, 4000)
-    verbosity_args(parser)
-    parser.add_argument("--broadcast-images", action="store_true")
-    parser.add_argument("--zmq-bind", default="*")
-    parser.add_argument("--zmq-port", default=5555, type=int)
-    return parser
-
-def create_zmq_server(bind="*", port=5555):
-    context = zmq.Context()
-    socket = context.socket(zmq.PUB)
-    socket.set_hwm(1)
-    socket.bind("tcp://{}:{}".format(bind, port))
-    return socket
-
 def main():
     args = get_argparser().parse_args()
     init_logger(args)
@@ -119,7 +111,7 @@ def main():
     loop = QEventLoop(app)
     asyncio.set_event_loop(loop)
 
-    dev = Dummy()
+    dev = DummyQtCamera()
 
     if args.broadcast_images:
         socket = create_zmq_server(args.zmq_bind, args.zmq_port)

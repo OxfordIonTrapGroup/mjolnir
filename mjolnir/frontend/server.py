@@ -18,6 +18,7 @@ def get_argparser():
     parser.add_argument("--zmq-port", default=5555, type=int)
     return parser
 
+
 def create_zmq_server(bind="*", port=5555):
     context = zmq.Context()
     socket = context.socket(zmq.PUB)
@@ -25,12 +26,8 @@ def create_zmq_server(bind="*", port=5555):
     socket.bind("tcp://{}:{}".format(bind, port))
     return socket
 
-def main():
-    args = get_argparser().parse_args()
-    init_logger(args)
 
-    dev = ThorlabsCCD()
-
+def run_server(dev, args):
     if args.broadcast_images:
         socket = create_zmq_server(args.zmq_bind, args.zmq_port)
         dev.register_callback(lambda im: socket.send_pyobj(im))
@@ -39,6 +36,15 @@ def main():
         simple_server_loop({"camera": dev}, args.bind, args.port)
     finally:
         dev.close()
+
+
+def main():
+    args = get_argparser().parse_args()
+    init_logger(args)
+
+    dev = ThorlabsCCD(id_=args.device)
+    run_server(dev, args)
+
 
 if __name__ == "__main__":
     main()

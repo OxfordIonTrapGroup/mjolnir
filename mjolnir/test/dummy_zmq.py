@@ -1,31 +1,30 @@
 #!/usr/bin/env python3.5
-import argparse
-import sys
+#
+# Dummy implementation that closely matches the actual
+# camera, just returns cached frames
+#
+# Also can be used a network server of dummy images
+#
 import time
-import zmq
 import numpy as np
 import itertools
 import logging
 from threading import Thread
 
 from artiq.protocols.pc_rpc import simple_server_loop
-from artiq.tools import verbosity_args, simple_network_args, init_logger
+from artiq.tools import init_logger
 
+from mjolnir.frontend.server import get_argparser, run_server
 from mjolnir.test.image_test import generate_image
 
 logger = logging.getLogger(__name__)
 
-class Dummy:
-    def __init__(self):
+class DummyCamera:
+    def __init__(self, *args, **kwargs):
+        # Cache some images to spew out
         space = np.linspace(0, 2*np.pi, num=10, endpoint=False)
         centroids = np.array([200 + 100*np.sin(space), 400 + 200*np.cos(space)])
         frames = [generate_image(c) for c in centroids.T]
-
-        # generate smaller images to see if calculation is limiting factor
-        # (it is by far the limiting factor)
-        # centroids = np.array([20 + 10*np.sin(space), 20+0*np.cos(space)])
-        # frames = [generate(centroid=c, cov=[[4,0],[0,4]], m=50, n=50)
-        #           for c in centroids.T]
 
         self._framegen = itertools.cycle(frames)
         self._frame = None
@@ -58,8 +57,8 @@ class Dummy:
                     s = np.clip(dt*3., 0, 1)
                     fps = fps * (1-s) + (1.0/dt) * s
 
-                print(format("\r{} {:.1f} fps".format(next(symbols), fps), '<16'),
-                    end='', flush=True)
+                # print("\r{} {: >4.1f} fps".format(
+                #       next(symbols), fps), end='', flush=True)
             time.sleep(0.1)
         self.dead = True
 
@@ -69,7 +68,7 @@ class Dummy:
     def close(self):
         self.quit = True
         while not self.dead:
-            time.sleep(0.01)
+            time.sleep(0.1)
 
     def get_image(self):
         return self._frame
@@ -110,37 +109,12 @@ class Dummy:
         pass
 
 
-def get_argparser():
-    parser = argparse.ArgumentParser()
-    simple_network_args(parser, 4000)
-    verbosity_args(parser)
-    parser.add_argument("--broadcast-images", action="store_true")
-    parser.add_argument("--zmq-bind", default="*")
-    parser.add_argument("--zmq-port", default=5555, type=int)
-    return parser
-
-def create_zmq_server(bind="*", port=5555):
-    context = zmq.Context()
-    socket = context.socket(zmq.PUB)
-    socket.set_hwm(1)
-    socket.bind("tcp://{}:{}".format(bind, port))
-    return socket
-
 def main():
     args = get_argparser().parse_args()
     init_logger(args)
 
-    dev = Dummy()
-
-    if args.broadcast_images:
-        socket = create_zmq_server(args.zmq_bind, args.zmq_port)
-        dev.register_callback(lambda im: socket.send_pyobj(im))
-
-    try:
-        simple_server_loop({"camera": dev}, args.bind, args.port)
-    finally:
-        dev.close()
-
+    dev = DummyCamera()
+    run_server(dev, args)
 
 
 if __name__ == "__main__":

@@ -32,7 +32,10 @@ class BeamDisplay(QtWidgets.QMainWindow):
         self._fps = None
         self._last_update = QtCore.QTime.currentTime()
         self._mark = None
+        self._centre = None
         self._residual_levels = [-10,10]
+
+        self.mark_widgets = []
 
         self.init_ui()
         self.show()
@@ -105,7 +108,6 @@ class BeamDisplay(QtWidgets.QMainWindow):
         self._last_update, self._fps = tools.update_rate(
             self._last_update, self._fps)
         self.fps.setText("{:.1f} fps".format(self._fps))
-        self.cps.setText("{:.1f} cps".format(up['cps']))
 
     def get_exposure_params(self):
         val, min_, max_, step = self.cam.get_exposure_params()
@@ -121,26 +123,29 @@ class BeamDisplay(QtWidgets.QMainWindow):
         pass
 
     def mark_cb(self):
-        self._mark = self._centre
+        if self._centre is not None:
+            self._mark = self._centre
+        else:
+            self._mark = [0, 0]
         point = QtCore.QPointF(*self._mark)
         self.mark_v_line.setValue(point)
         self.mark_h_line.setValue(point)
-        self.mark_v_line.show()
-        self.mark_h_line.show()
 
         # Not ideal but don't want to duplicate px_string from update
         # If the user is using in continuous mode they'll never notice...
         self.x_delta.setText('')
         self.y_delta.setText('')
-        self.x_delta.show()
-        self.y_delta.show()
+        self.mark_x.setText("{:.1f}".format(self._mark[0]))
+        self.mark_y.setText("{:.1f}".format(self._mark[1]))
+
+        for w in self.mark_widgets:
+            w.show()
 
     def unmark_cb(self):
         self._mark = None
-        self.mark_v_line.hide()
-        self.mark_h_line.hide()
-        self.x_delta.hide()
-        self.y_delta.hide()
+
+        for w in self.mark_widgets:
+            w.hide()
 
     def get_color_map(self):
         # Colour map for residuals is transparent when residual is zero
@@ -196,14 +201,22 @@ class BeamDisplay(QtWidgets.QMainWindow):
         self.mark.clicked.connect(self.mark_cb)
         self.unmark.clicked.connect(self.unmark_cb)
 
-        # Distance from marked location
+        # Mark location
+        self.mark_x = QtGui.QLineEdit()
+        self.mark_y = QtGui.QLineEdit()
+
+        # Beam distance from marked location
         self.x_delta = QtGui.QLabel()
         self.y_delta = QtGui.QLabel()
-        self.x_delta.hide()
-        self.y_delta.hide()
+
+        # Keep a list of mark sub-widgets so we can hide/show them
+        # Obviously we don't want to hide the mark buttons themselves
+        self.mark_widgets.extend([
+            self.mark_x, self.mark_y,
+            self.x_delta, self.y_delta,
+        ])
 
         self.fps = QtGui.QLabel()
-        self.cps = QtGui.QLabel()
 
         #
         # Add the widgets to their layouts
@@ -223,9 +236,22 @@ class BeamDisplay(QtWidgets.QMainWindow):
         self.param_layout.addRow("X position:", self.x_centroid)
         self.param_layout.addRow("Y position:", self.y_centroid)
         self.param_layout.addRow(QtGui.QWidget())
+
+        mark_x_label = QtGui.QLabel("Mark X:")
+        mark_y_label = QtGui.QLabel("Mark Y:")
+        dx_label = QtGui.QLabel("ΔX:")
+        dy_label = QtGui.QLabel("ΔY:")
+        self.mark_widgets.extend([
+            mark_x_label, mark_y_label,
+            dx_label, dy_label,
+        ])
         self.param_layout.addRow(self.mark, self.unmark)
-        self.param_layout.addRow("ΔX:", self.x_delta)
-        self.param_layout.addRow("ΔY:", self.y_delta)
+        self.param_layout.addRow(mark_x_label, self.mark_x)
+        self.param_layout.addRow(mark_y_label, self.mark_y)
+        self.param_layout.addRow(dx_label, self.x_delta)
+        self.param_layout.addRow(dy_label, self.y_delta)
+        for w in self.mark_widgets:
+            w.hide()
 
         self.param_widget = QtGui.QWidget()
         self.param_widget.setLayout(self.param_layout)
@@ -240,7 +266,6 @@ class BeamDisplay(QtWidgets.QMainWindow):
         self.info_pane_layout.addWidget(self.param_widget)
         self.info_pane_layout.addStretch(3)
         self.info_pane_layout.addWidget(self.fps)
-        self.info_pane_layout.addWidget(self.cps)
 
         self.info_pane = QtWidgets.QWidget(self)
         self.info_pane.setLayout(self.info_pane_layout)
@@ -298,8 +323,9 @@ class BeamDisplay(QtWidgets.QMainWindow):
         # User marked position
         self.mark_v_line = pg.InfiniteLine(pos=1, angle=90, pen=rpen)
         self.mark_h_line = pg.InfiniteLine(pos=1, angle=0, pen=rpen)
-        self.mark_v_line.hide()
-        self.mark_h_line.hide()
+        self.mark_widgets.extend([
+            self.mark_v_line, self.mark_h_line,
+        ])
 
         # Centroid position markers in zoomed image, aligned with beam
         # ellipse axes

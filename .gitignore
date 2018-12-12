@@ -1,3 +1,6 @@
 *.bmp
-__pycache__
+__pycache__/
 *.pyc
+*.egg-info
+build/
+*.spec

@@ -18,3 +18,7 @@ def main():
     camera.register_callback(lambda im: b.queue_image(im))
 
     sys.exit(app.exec_())
+
+
+if __name__ == "__main__":
+    main()

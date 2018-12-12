@@ -48,7 +48,6 @@ class ThorlabsCCD:
 
     def __init__(self, id_=None, framebuffer_len=100):
         self.camera_id = id_ if id_ is not None else 0
-        self._library_init()
 
         self.quit = False
         self.dead = False
@@ -66,6 +65,7 @@ class ThorlabsCCD:
         self._frame_call_list = []
 
         # connect to camera
+        self._library_init()
         self._connect()
 
         # Start image acquisition thread

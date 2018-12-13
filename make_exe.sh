@@ -1,1 +1,1 @@
-pyinstaller profiler_gui.py -y --paths $CONDA_PREFIX/Lib/site-packages/PyQt5/Qt/bin -d --exclude-module matplotlib --paths $CONDA_PREFIX/Lib/site-packages --paths $CONDA_PREFIX/Lib/site-packages/Library/bin --onefile
+pyinstaller mjolnir/frontend/launcher.py -y -d --onefile --windowed --exclude-module matplotlib --paths $VIRTUAL_ENV/Lib/site-packages/PyQt5/Qt/bin --paths $VIRTUAL_ENV/Lib/site-packages/Library/bin --paths $VIRTUAL_ENV/Lib/site-packages

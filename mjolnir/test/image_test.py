@@ -1,10 +1,10 @@
 import numpy as np
 from scipy.stats import multivariate_normal as mv
-import matplotlib.pyplot as plt
-from matplotlib import cm
+# import matplotlib.pyplot as plt
+# from matplotlib import cm
 from numpy.linalg import eig
-import matplotlib.image as mpimg
-from mpl_toolkits.mplot3d import Axes3D
+# import matplotlib.image as mpimg
+# from mpl_toolkits.mplot3d import Axes3D
 
 from mjolnir.tools.image_tools import gaussian_beam
 

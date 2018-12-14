@@ -88,26 +88,26 @@ class BeamDisplay(QtWidgets.QMainWindow):
         self.isocurve.setLevel(up['iso_level'])
         self.isocurve.setData(up['im_fit'])
 
-        def px_string(px):
-            return "{:.1f}μm ({:.1f}px)".format(px*self._px_width, px)
-
-        self.maj_radius.setText(px_string(up['semimaj']))
-        self.min_radius.setText(px_string(up['semimin']))
-        self.avg_radius.setText(px_string(up['avg_radius']))
-        self.x_radius.setText(px_string(up['x_radius']))
-        self.y_radius.setText(px_string(up['y_radius']))
-        self.x_centroid.setText(px_string(up['x0'][0]))
-        self.y_centroid.setText(px_string(up['x0'][1]))
+        self.maj_radius.setText(self.px_string(up['semimaj']))
+        self.min_radius.setText(self.px_string(up['semimin']))
+        self.avg_radius.setText(self.px_string(up['avg_radius']))
+        self.x_radius.setText(self.px_string(up['x_radius']))
+        self.y_radius.setText(self.px_string(up['y_radius']))
+        self.x_centroid.setText(self.px_string(up['x0'][0]))
+        self.y_centroid.setText(self.px_string(up['x0'][1]))
         self.ellipticity.setText("{:.3f}".format(up['e']))
 
         if self._mark is not None:
             delta = up['x0'] - self._mark
-            self.x_delta.setText(px_string(delta[0]))
-            self.y_delta.setText(px_string(delta[1]))
+            self.x_delta.setText(self.px_string(delta[0]))
+            self.y_delta.setText(self.px_string(delta[1]))
 
         self._last_update, self._fps = tools.update_rate(
             self._last_update, self._fps)
         self.fps.setText("{:.1f} fps".format(self._fps))
+
+    def px_string(self):
+        return "{:.1f}μm ({:.1f}px)".format(px*self._px_width, px)
 
     def get_exposure_params(self):
         val, min_, max_, step = self.cam.get_exposure_params()

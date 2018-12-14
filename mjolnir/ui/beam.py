@@ -165,6 +165,9 @@ class BeamDisplay(QtWidgets.QMainWindow):
 
         self.init_graphics()
         self.init_info_pane()
+        self.layout_graphics()
+        self.layout_info_pane()
+        self.connect_actions()
 
         self.layout.addWidget(self.g_layout, stretch=2)
         self.layout.addWidget(self.info_pane)
@@ -172,19 +175,25 @@ class BeamDisplay(QtWidgets.QMainWindow):
         self.setCentralWidget(self.widget)
         self.setGeometry(300, 300, 1500, 600)
 
+    def connect_actions(self):
+        """Connect triggers to their actions"""
+        self.single_acq.clicked.connect(lambda: self.cam.single_acquisition())
+        self.start_acq.clicked.connect(lambda: self.cam.start_acquisition())
+        self.stop_acq.clicked.connect(lambda: self.cam.stop_acquisition())
+        # connect after finding params so we don't send accidental update
+        self.exposure.valueChanged.connect(self.exposure_cb)
+        self.mark.clicked.connect(self.mark_cb)
+        self.unmark.clicked.connect(self.unmark_cb)
+
     def init_info_pane(self):
-        self.single = QtGui.QPushButton("Single Acquisition")
-        self.start = QtGui.QPushButton("Start Acquisition")
-        self.stop = QtGui.QPushButton("Stop Acquisition")
-        self.single.clicked.connect(lambda: self.cam.single_acquisition())
-        self.start.clicked.connect(lambda: self.cam.start_acquisition())
-        self.stop.clicked.connect(lambda: self.cam.stop_acquisition())
+        """Initialise the info pane's permanent widgets"""
+        self.single_acq = QtGui.QPushButton("Single Acquisition")
+        self.start_acq = QtGui.QPushButton("Start Acquisition")
+        self.stop_acq = QtGui.QPushButton("Stop Acquisition")
 
         self.exposure = QtGui.QDoubleSpinBox()
         self.exposure.setSuffix(" ms")
         self.get_exposure_params()
-        # connect after finding params so we don't send accidental update
-        self.exposure.valueChanged.connect(self.exposure_cb)
 
         self.maj_radius = QtGui.QLabel()
         self.min_radius = QtGui.QLabel()
@@ -198,8 +207,6 @@ class BeamDisplay(QtWidgets.QMainWindow):
         # Mark current beam position
         self.mark = QtGui.QPushButton("Mark")
         self.unmark = QtGui.QPushButton("Unmark")
-        self.mark.clicked.connect(self.mark_cb)
-        self.unmark.clicked.connect(self.unmark_cb)
 
         # Mark location
         self.mark_x = QtGui.QLineEdit()
@@ -218,62 +225,8 @@ class BeamDisplay(QtWidgets.QMainWindow):
 
         self.fps = QtGui.QLabel()
 
-        #
-        # Add the widgets to their layouts
-        #
-        self.param_layout = QtWidgets.QFormLayout()
-        self.param_layout.addRow(QtGui.QLabel("Beam Parameters"))
-        self.param_layout.addRow(QtGui.QLabel("(all radii are 1/e^2)"))
-        self.param_layout.addRow(QtGui.QWidget())
-        self.param_layout.addRow("Semi-major radius:", self.maj_radius)
-        self.param_layout.addRow("Semi-minor radius:", self.min_radius)
-        self.param_layout.addRow("Average radius:", self.avg_radius)
-        self.param_layout.addRow("Ellipticity:", self.ellipticity)
-        self.param_layout.addRow(QtGui.QWidget())
-        self.param_layout.addRow("X radius:", self.x_radius)
-        self.param_layout.addRow("Y radius:", self.y_radius)
-        self.param_layout.addRow(QtGui.QWidget())
-        self.param_layout.addRow("X position:", self.x_centroid)
-        self.param_layout.addRow("Y position:", self.y_centroid)
-        self.param_layout.addRow(QtGui.QWidget())
-
-        mark_x_label = QtGui.QLabel("Mark X:")
-        mark_y_label = QtGui.QLabel("Mark Y:")
-        dx_label = QtGui.QLabel("ΔX:")
-        dy_label = QtGui.QLabel("ΔY:")
-        self.mark_widgets.extend([
-            mark_x_label, mark_y_label,
-            dx_label, dy_label,
-        ])
-        self.param_layout.addRow(self.mark, self.unmark)
-        self.param_layout.addRow(mark_x_label, self.mark_x)
-        self.param_layout.addRow(mark_y_label, self.mark_y)
-        self.param_layout.addRow(dx_label, self.x_delta)
-        self.param_layout.addRow(dy_label, self.y_delta)
-        for w in self.mark_widgets:
-            w.hide()
-
-        self.param_widget = QtGui.QWidget()
-        self.param_widget.setLayout(self.param_layout)
-
-        self.info_pane_layout = QtWidgets.QVBoxLayout()
-        self.info_pane_layout.setAlignment(QtCore.Qt.AlignTop)
-        self.info_pane_layout.addWidget(self.start)
-        self.info_pane_layout.addWidget(self.single)
-        self.info_pane_layout.addWidget(self.stop)
-        self.info_pane_layout.addWidget(self.exposure)
-        self.info_pane_layout.addStretch(1)
-        self.info_pane_layout.addWidget(self.param_widget)
-        self.info_pane_layout.addStretch(3)
-        self.info_pane_layout.addWidget(self.fps)
-
-        self.info_pane = QtWidgets.QWidget(self)
-        self.info_pane.setLayout(self.info_pane_layout)
-
     def init_graphics(self):
-        # Graphics layout object to place viewboxes in
-        self.g_layout = pg.GraphicsLayoutWidget(border=(80, 80, 80))
-
+        """Initialise the important graphics items"""
         m, n = 1280, 1024
         self.image = pg.ImageItem(np.zeros((m,n)))
         self.zoom = pg.ImageItem(np.zeros((50,50)))
@@ -284,21 +237,12 @@ class BeamDisplay(QtWidgets.QMainWindow):
         self.y_fit = pg.PlotDataItem(np.zeros(n), pen={'width':2})
         self.y_slice = pg.PlotDataItem(np.zeros(n), pen=None, symbol='o', pxMode=True, symbolSize=4)
 
-        # Viewboxes for images
-        # aspect locked so that pixels are square
-        # y inverted so that (0,0) is top left as in Thorlabs software
-        options = {"lockAspect":True, "invertY":True}
-        self.vb_image = self.g_layout.addViewBox(row=0, col=0, rowspan=2, **options)
-        self.vb_zoom = self.g_layout.addViewBox(row=0, col=2, **options)
-        self.vb_residuals = self.g_layout.addViewBox(row=1, col=2, **options)
-
         # Only the residuals have any sort of false color - initialise the
         # lookup table and the legend
         cmap = self.get_color_map()
         self.residual_LUT = cmap.getLookupTable(nPts=256)
         self.res_legend = pg.GradientLegend((10,255),(0, 20))
         self.res_legend.setGradient(cmap.getGradient())
-        self.res_legend.setParentItem(self.vb_residuals)
         n_ticks = 5
         self.res_legend.setLabels({"{}".format(level):val
             for (level, val) in zip(
@@ -337,6 +281,70 @@ class BeamDisplay(QtWidgets.QMainWindow):
         isopen = pg.mkPen(color=(255,255,0,85), width=3, style=QtCore.Qt.DotLine)
         self.isocurve = pg.IsocurveItem(pen=isopen)
         self.isocurve.setParentItem(self.zoom)
+
+    def layout_info_pane(self):
+        """Add info pane widgets to their layout"""
+        self.param_layout = QtWidgets.QFormLayout()
+        self.param_layout.addRow(QtGui.QLabel("Beam Parameters"))
+        self.param_layout.addRow(QtGui.QLabel("(all radii are 1/e^2)"))
+        self.param_layout.addRow(QtGui.QWidget())
+        self.param_layout.addRow("Semi-major radius:", self.maj_radius)
+        self.param_layout.addRow("Semi-minor radius:", self.min_radius)
+        self.param_layout.addRow("Average radius:", self.avg_radius)
+        self.param_layout.addRow("Ellipticity:", self.ellipticity)
+        self.param_layout.addRow(QtGui.QWidget())
+        self.param_layout.addRow("X radius:", self.x_radius)
+        self.param_layout.addRow("Y radius:", self.y_radius)
+        self.param_layout.addRow(QtGui.QWidget())
+        self.param_layout.addRow("X position:", self.x_centroid)
+        self.param_layout.addRow("Y position:", self.y_centroid)
+        self.param_layout.addRow(QtGui.QWidget())
+
+        mark_x_label = QtGui.QLabel("Mark X:")
+        mark_y_label = QtGui.QLabel("Mark Y:")
+        dx_label = QtGui.QLabel("ΔX:")
+        dy_label = QtGui.QLabel("ΔY:")
+        self.mark_widgets.extend([
+            mark_x_label, mark_y_label,
+            dx_label, dy_label,
+        ])
+        self.param_layout.addRow(self.mark, self.unmark)
+        self.param_layout.addRow(mark_x_label, self.mark_x)
+        self.param_layout.addRow(mark_y_label, self.mark_y)
+        self.param_layout.addRow(dx_label, self.x_delta)
+        self.param_layout.addRow(dy_label, self.y_delta)
+        for w in self.mark_widgets:
+            w.hide()
+
+        self.param_widget = QtGui.QWidget()
+        self.param_widget.setLayout(self.param_layout)
+
+        self.info_pane_layout = QtWidgets.QVBoxLayout()
+        self.info_pane_layout.setAlignment(QtCore.Qt.AlignTop)
+        self.info_pane_layout.addWidget(self.start_acq)
+        self.info_pane_layout.addWidget(self.single_acq)
+        self.info_pane_layout.addWidget(self.stop_acq)
+        self.info_pane_layout.addWidget(self.exposure)
+        self.info_pane_layout.addStretch(1)
+        self.info_pane_layout.addWidget(self.param_widget)
+        self.info_pane_layout.addStretch(3)
+        self.info_pane_layout.addWidget(self.fps)
+
+        self.info_pane = QtWidgets.QWidget(self)
+        self.info_pane.setLayout(self.info_pane_layout)
+
+    def layout_graphics(self):
+        """Put graphics items in the layout"""
+        # Graphics layout object to place viewboxes in
+        self.g_layout = pg.GraphicsLayoutWidget(border=(80, 80, 80))
+
+        # Viewboxes for images
+        # aspect locked so that pixels are square
+        # y inverted so that (0,0) is top left as in Thorlabs software
+        options = {"lockAspect":True, "invertY":True}
+        self.vb_image = self.g_layout.addViewBox(row=0, col=0, rowspan=2, **options)
+        self.vb_zoom = self.g_layout.addViewBox(row=0, col=2, **options)
+        self.vb_residuals = self.g_layout.addViewBox(row=1, col=2, **options)
 
         # Viewboxes for slice data
         # Both boxes have mouse disabled - range is fixed so we don't want to
@@ -388,6 +396,8 @@ class BeamDisplay(QtWidgets.QMainWindow):
         self.vb_x.addItem(self.x_fit)
         self.vb_y.addItem(self.y_slice)
         self.vb_y.addItem(self.y_fit)
+
+        self.res_legend.setParentItem(self.vb_residuals)
 
         self.vb_image.setRange(QtCore.QRectF(0, 0, 1280, 1024))
         self.vb_zoom.setRange(QtCore.QRectF(0, 0, 50, 50))

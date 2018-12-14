@@ -106,7 +106,7 @@ class BeamDisplay(QtWidgets.QMainWindow):
             self._last_update, self._fps)
         self.fps.setText("{:.1f} fps".format(self._fps))
 
-    def px_string(self):
+    def px_string(self, px):
         return "{:.1f}μm ({:.1f}px)".format(px*self._px_width, px)
 
     def get_exposure_params(self):
@@ -147,6 +147,22 @@ class BeamDisplay(QtWidgets.QMainWindow):
         for w in self.mark_widgets:
             w.hide()
 
+    @QtCore.pyqtSlot(tuple)
+    def cursor_cb(self, scene_pos):
+        if self.vb_image.sceneBoundingRect().contains(scene_pos):
+            pos = self.vb_image.mapSceneToView(scene_pos)
+            upper = np.array(self.image.image.shape)
+            lower = np.zeros(2)
+            pos_tup = np.array((pos.x(), pos.y()))
+
+            # check whether the point is within the image
+            if np.all(np.logical_and(lower <= pos_tup, pos_tup <= upper)):
+                self.cursor_v.setValue(pos)
+                self.cursor_h.setValue(pos)
+                self.cursor_text.setPos(pos)
+                self.cursor_text.setText(
+                    "({:.1f}, {:.1f})".format(*pos_tup))
+
     def get_color_map(self):
         # Colour map for residuals is transparent when residual is zero
         colors = np.array([
@@ -184,6 +200,10 @@ class BeamDisplay(QtWidgets.QMainWindow):
         self.exposure.valueChanged.connect(self.exposure_cb)
         self.mark.clicked.connect(self.mark_cb)
         self.unmark.clicked.connect(self.unmark_cb)
+
+        proxy = pg.SignalProxy(self.g_layout.scene().sigMouseMoved,
+            rateLimit=20, slot=self.cursor_cb)
+        self.g_layout.scene().sigMouseMoved.connect(self.cursor_cb)
 
     def init_info_pane(self):
         """Initialise the info pane's permanent widgets"""
@@ -250,7 +270,6 @@ class BeamDisplay(QtWidgets.QMainWindow):
                 np.linspace(0, 1, n_ticks))})
 
         ypen = pg.mkPen(color=(255,255,0,85), width=3)
-        rpen = pg.mkPen(color=(255,0,0,127), width=3, style=QtCore.Qt.DotLine)
 
         # Centroid position markers in main image, aligned with x,y
         self.fit_v_line = pg.InfiniteLine(pos=1, angle=90, pen=ypen)
@@ -265,11 +284,18 @@ class BeamDisplay(QtWidgets.QMainWindow):
             for i in range(n_history)]
 
         # User marked position
+        rpen = pg.mkPen(color=(255,0,0,127), width=3, style=QtCore.Qt.DotLine)
         self.mark_v_line = pg.InfiniteLine(pos=1, angle=90, pen=rpen)
         self.mark_h_line = pg.InfiniteLine(pos=1, angle=0, pen=rpen)
         self.mark_widgets.extend([
             self.mark_v_line, self.mark_h_line,
         ])
+
+        # Mouse cursor
+        wpen = pg.mkPen(color=(255,255,255,63), width=3)
+        self.cursor_v = pg.InfiniteLine(pos=1, angle=90, pen=wpen)
+        self.cursor_h = pg.InfiniteLine(pos=1, angle=0, pen=wpen)
+        self.cursor_text = pg.TextItem()
 
         # Centroid position markers in zoomed image, aligned with beam
         # ellipse axes
@@ -382,6 +408,9 @@ class BeamDisplay(QtWidgets.QMainWindow):
         self.vb_image.addItem(self.fit_h_line)
         self.vb_image.addItem(self.mark_v_line)
         self.vb_image.addItem(self.mark_h_line)
+        self.vb_image.addItem(self.cursor_v)
+        self.vb_image.addItem(self.cursor_h)
+        self.vb_image.addItem(self.cursor_text)
         self.vb_image.addItem(self.history_plot)
         # Figure out how to overlay properly?
         # self.vb_image.addItem(self.x_slice)

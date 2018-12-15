@@ -149,6 +149,7 @@ class BeamDisplay(QtWidgets.QMainWindow):
 
     @QtCore.pyqtSlot(tuple)
     def cursor_cb(self, scene_pos):
+        widgets = [self.cursor_v, self.cursor_h, self.cursor_text]
         if self.vb_image.sceneBoundingRect().contains(scene_pos):
             pos = self.vb_image.mapSceneToView(scene_pos)
             upper = np.array(self.image.image.shape)
@@ -157,11 +158,23 @@ class BeamDisplay(QtWidgets.QMainWindow):
 
             # check whether the point is within the image
             if np.all(np.logical_and(lower <= pos_tup, pos_tup <= upper)):
-                self.cursor_v.setValue(pos)
-                self.cursor_h.setValue(pos)
+                self.cursor_v.setPos(pos)
+                self.cursor_h.setPos(pos)
                 self.cursor_text.setPos(pos)
                 self.cursor_text.setText(
                     "({:.1f}, {:.1f})".format(*pos_tup))
+
+                self.vb_image.setCursor(QtCore.Qt.CrossCursor)
+                for w in widgets:
+                    w.show()
+            else:
+                self.vb_image.setCursor(QtCore.Qt.ArrowCursor)
+                for w in widgets:
+                    w.hide()
+        else:
+            self.vb_image.setCursor(QtCore.Qt.ArrowCursor)
+            for w in widgets:
+                w.hide()
 
     def get_color_map(self):
         # Colour map for residuals is transparent when residual is zero
@@ -295,7 +308,7 @@ class BeamDisplay(QtWidgets.QMainWindow):
         wpen = pg.mkPen(color=(255,255,255,63), width=3)
         self.cursor_v = pg.InfiniteLine(pos=1, angle=90, pen=wpen)
         self.cursor_h = pg.InfiniteLine(pos=1, angle=0, pen=wpen)
-        self.cursor_text = pg.TextItem()
+        self.cursor_text = pg.TextItem(anchor=(-0.1, 1.1))
 
         # Centroid position markers in zoomed image, aligned with beam
         # ellipse axes

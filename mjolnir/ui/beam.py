@@ -147,9 +147,7 @@ class BeamDisplay(QtWidgets.QMainWindow):
         for w in self.mark_widgets:
             w.hide()
 
-    @QtCore.pyqtSlot(tuple)
-    def cursor_cb(self, scene_pos):
-        widgets = [self.cursor_v, self.cursor_h, self.cursor_text]
+    def is_within_image(self, scene_pos):
         if self.vb_image.sceneBoundingRect().contains(scene_pos):
             pos = self.vb_image.mapSceneToView(scene_pos)
             upper = np.array(self.image.image.shape)
@@ -158,19 +156,24 @@ class BeamDisplay(QtWidgets.QMainWindow):
 
             # check whether the point is within the image
             if np.all(np.logical_and(lower <= pos_tup, pos_tup <= upper)):
-                self.cursor_v.setPos(pos)
-                self.cursor_h.setPos(pos)
-                self.cursor_text.setPos(pos)
-                self.cursor_text.setText(
-                    "({:.1f}, {:.1f})".format(*pos_tup))
+                return True
+        return False
 
-                self.vb_image.setCursor(QtCore.Qt.CrossCursor)
-                for w in widgets:
-                    w.show()
-            else:
-                self.vb_image.setCursor(QtCore.Qt.ArrowCursor)
-                for w in widgets:
-                    w.hide()
+    @QtCore.pyqtSlot(tuple)
+    def cursor_cb(self, scene_pos):
+        widgets = [self.cursor_v, self.cursor_h, self.cursor_text]
+        if self.is_within_image(scene_pos):
+            pos = self.vb_image.mapSceneToView(scene_pos)
+
+            self.cursor_v.setPos(pos)
+            self.cursor_h.setPos(pos)
+            self.cursor_text.setPos(pos)
+            self.cursor_text.setText(
+                "({:.1f}, {:.1f})".format(pos.x(), pos.y()))
+
+            self.vb_image.setCursor(QtCore.Qt.CrossCursor)
+            for w in widgets:
+                w.show()
         else:
             self.vb_image.setCursor(QtCore.Qt.ArrowCursor)
             for w in widgets:

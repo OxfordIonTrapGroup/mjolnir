@@ -69,8 +69,8 @@ class BeamDisplay(QtWidgets.QMainWindow):
 
         # Sub-pixel position works with QPointF
         point = QtCore.QPointF(*up['x0'])
-        self.fit_v_line.setValue(point)
-        self.fit_h_line.setValue(point)
+        self.fit_v_line.setPos(point)
+        self.fit_h_line.setPos(point)
 
         nopen = pg.mkPen(style=QtCore.Qt.NoPen)
         self.history.append(up['x0'])
@@ -80,8 +80,8 @@ class BeamDisplay(QtWidgets.QMainWindow):
             brush=self.history_brushes[-len(self.history):])
 
         # 'centre' is a QPointF
-        self.fit_maj_line.setValue(up['zoom_centre'])
-        self.fit_min_line.setValue(up['zoom_centre'])
+        self.fit_maj_line.setPos(up['zoom_centre'])
+        self.fit_min_line.setPos(up['zoom_centre'])
         self.fit_maj_line.setAngle(up['semimaj_angle'])
         self.fit_min_line.setAngle(up['semimin_angle'])
 
@@ -128,8 +128,8 @@ class BeamDisplay(QtWidgets.QMainWindow):
         else:
             self._mark = [0, 0]
         point = QtCore.QPointF(*self._mark)
-        self.mark_v_line.setValue(point)
-        self.mark_h_line.setValue(point)
+        self.mark_v_line.setPos(point)
+        self.mark_h_line.setPos(point)
 
         # Not ideal but don't want to duplicate px_string from update
         # If the user is using in continuous mode they'll never notice...

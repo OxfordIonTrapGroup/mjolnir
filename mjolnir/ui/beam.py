@@ -179,6 +179,13 @@ class BeamDisplay(QtWidgets.QMainWindow):
             for w in widgets:
                 w.hide()
 
+    @QtCore.pyqtSlot(tuple)
+    def clicked_cb(self, evt):
+        scene_pos = evt.scenePos()
+        if (evt.button() == 1 and not evt.double()
+                and self.is_within_image(scene_pos)):
+            pos = self.vb_image.mapSceneToView(scene_pos)
+
     def get_color_map(self):
         # Colour map for residuals is transparent when residual is zero
         colors = np.array([
@@ -220,6 +227,7 @@ class BeamDisplay(QtWidgets.QMainWindow):
         proxy = pg.SignalProxy(self.g_layout.scene().sigMouseMoved,
             rateLimit=20, slot=self.cursor_cb)
         self.g_layout.scene().sigMouseMoved.connect(self.cursor_cb)
+        self.g_layout.scene().sigMouseClicked.connect(self.clicked_cb)
 
     def init_info_pane(self):
         """Initialise the info pane's permanent widgets"""

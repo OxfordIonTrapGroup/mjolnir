@@ -44,3 +44,16 @@ Things I know should be better but aren't.
   I haven't figured out how to do this yet. When the plot is added directly,
   it only appears at the edge of the image.
 * Implement ROI selection
+* add icon! The following works for apps launched from Python, but not
+  PyInstaller:
+
+```python
+icon = QtGui.QIcon()
+icon.addFile(pkg_resources.resource_filename(
+    "mjolnir.resources", "icon.svg"))
+self.setWindowIcon(icon)
+```
+
+* **BUG** The image fitting works great, but the lines appear half a pixel
+  above and to the left of where they should. This is because the pixel is
+  drawn to the bottom right of its index

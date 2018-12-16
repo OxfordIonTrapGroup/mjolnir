@@ -261,6 +261,7 @@ class BeamDisplay(QtWidgets.QMainWindow):
         if (evt.button() == 1 and not evt.double()
                 and self.is_within_image(scene_pos)):
             pos = self.vb_image.mapSceneToView(scene_pos)
+            self.cursor_delta.setText("Δ = (0.0, 0.0) μm")
             self.new_mark(pos)
 
     def get_color_map(self):

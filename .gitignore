@@ -1,6 +1,8 @@
-*.bmp
 __pycache__/
-*.pyc
-*.egg-info
 build/
+dist/
+*.bmp
+*.egg-info
+*.pyc
+*.pyo
 *.spec

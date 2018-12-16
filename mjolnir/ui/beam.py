@@ -34,6 +34,9 @@ class BeamDisplay(QtWidgets.QMainWindow):
         self._mark = None
         self._centre = None
         self._residual_levels = [-10,10]
+        self._history_timer = QtCore.QTimer(self)
+        self._history_timer.timeout.connect(self.age_history)
+        self._history_timer.start(150)
 
         self.mark_widgets = []
 
@@ -72,12 +75,9 @@ class BeamDisplay(QtWidgets.QMainWindow):
         self.fit_v_line.setPos(point)
         self.fit_h_line.setPos(point)
 
-        nopen = pg.mkPen(style=QtCore.Qt.NoPen)
         self.history.append(up['x0'])
-        self.history_plot.setData(
-            pos=self.history,
-            pen=nopen,
-            brush=self.history_brushes[-len(self.history):])
+        self.replot_history()
+        self._history_timer.start(150)
 
         # 'centre' is a QPointF
         self.fit_maj_line.setPos(up['zoom_centre'])
@@ -108,6 +108,27 @@ class BeamDisplay(QtWidgets.QMainWindow):
 
     def px_string(self, px):
         return "{:.1f}μm ({:.1f}px)".format(px*self._px_width, px)
+
+    def px_to_um(self, px):
+        return self._px_width * px
+
+    def replot_history(self):
+        """Update history plot with currently stored points"""
+        nopen = pg.mkPen(style=QtCore.Qt.NoPen)
+        self.history_plot.setData(
+            pos=self.history,
+            pen=nopen,
+            brush=self.history_brushes[-len(self.history):])
+
+    @QtCore.pyqtSlot()
+    def age_history(self):
+        try:
+            _ = self.history.popleft()
+        except IndexError:
+            return
+        if not self.history:
+            return
+        self.replot_history()
 
     def get_exposure_params(self):
         val, min_, max_, step = self.cam.get_exposure_params()

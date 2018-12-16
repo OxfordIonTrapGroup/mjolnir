@@ -26,6 +26,7 @@ def remote(args):
     ctx = zmq.Context()
     sock = zmq_setup(ctx, args.server, args.zmq_port)
 
+    @QtCore.pyqtSlot()
     def qt_update():
         try:
             im = sock.recv_pyobj()

@@ -7,3 +7,7 @@ pyinstaller mjolnir/test/gui_test.py -y -d all --clean --onefile --windowed
 # --paths $VIRTUAL_ENV/Lib/site-packages/PyQt5/Qt/bin  \
 # --paths $VIRTUAL_ENV/Lib/site-packages/Library/bin   \
 # --paths $VIRTUAL_ENV/Lib/site-packages
+
+# You can try this but it didn't work for me
+# (built the exe but it wouldn't run)
+# --upx-dir=$HOME/scratch/upx-3.95-win64

@@ -1,7 +1,7 @@
 import pyqtgraph as pg
 import numpy as np
 from PyQt5 import QtGui, QtWidgets, QtCore
-from collections import deque
+import collections
 
 from mjolnir.ui.worker import Worker
 from mjolnir.tools import tools
@@ -18,8 +18,8 @@ class BeamDisplay(QtWidgets.QMainWindow):
         self._px_width = 5.2
 
         # Deques discard the oldest value when full
-        self.imageq = deque(maxlen=3)
-        self.updateq = deque(maxlen=3)
+        self.imageq = collections.deque(maxlen=3)
+        self.updateq = collections.deque(maxlen=3)
         self.worker = Worker(self.imageq, self.updateq)
         self.thread = QtCore.QThread()
         self.worker.moveToThread(self.thread)
@@ -379,7 +379,7 @@ class BeamDisplay(QtWidgets.QMainWindow):
 
         # Plot fading recent position markers
         n_history = 5
-        self.history = deque(maxlen=n_history)
+        self.history = collections.deque(maxlen=n_history)
         self.history_plot = pg.ScatterPlotItem()
         self.history_brushes = [pg.mkBrush(
             color=(255,255,0,int((i+1)*255/n_history)))

@@ -23,7 +23,7 @@ This is the install location so I don't have to look for it again.
 `C:\Program Files\Thorlabs\Scientific Imaging\uc480_64.dll`
 
 
-### Building with PyInstaller
+## Building with PyInstaller
 
 Didn't look hard enough at what was supported when trying to build.
 
@@ -34,3 +34,13 @@ https://github.com/pyinstaller/pyinstaller/commit/5edb4f7dee9c21f77c4a89342eb982
 ~~
 
 Use Python 3.6 and PyInstaller 3.4, and it should 'just work'.
+
+
+## Improvements
+
+Things I know should be better but aren't.
+
+* Would be really nice to have the 1D slices overlaid on the image itself but
+  I haven't figured out how to do this yet. When the plot is added directly,
+  it only appears at the edge of the image.
+* Implement ROI selection

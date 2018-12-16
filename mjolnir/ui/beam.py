@@ -211,16 +211,12 @@ class BeamDisplay(QtWidgets.QMainWindow):
 
     @QtCore.pyqtSlot(tuple)
     def cursor_cb(self, scene_pos):
-        widgets = [self.cursor_v, self.cursor_h,
-                   self.cursor_text, self.cursor_delta]
+        """Called when the cursor is within the graphics view"""
         if self.is_within_image(scene_pos):
-            # print(scene_pos, flush=True)
-
             pos = self.vb_image.mapSceneToView(scene_pos)
 
             self.cursor_v.setPos(pos)
             self.cursor_h.setPos(pos)
-            # self.cursor_text.setPos(pos)
             self.cursor_text.setText(
                 "({:.1f}, {:.1f}) px".format(pos.x(), pos.y()))
             if self._mark is not None:
@@ -230,8 +226,10 @@ class BeamDisplay(QtWidgets.QMainWindow):
                     "Δ = ({:.1f}, {:.1f}) μm".format(
                         self.px_to_um(delta.x()), self.px_to_um(delta.y())))
 
-            for w in widgets:
-                w.show()
+            self.cursor_v.show()
+            self.cursor_h.show()
+            self.cursor_text.show()
+            self.cursor_delta.show()
 
         elif self.is_within_zoom(scene_pos):
             pos = self.vb_zoom.mapSceneToView(scene_pos)
@@ -246,21 +244,16 @@ class BeamDisplay(QtWidgets.QMainWindow):
             pos = self.vb_residuals.mapSceneToView(scene_pos)
 
             if self._up is not None:
-                x = int(pos.x())
-                y = int(pos.y())
-                res = self._up['im_res'][x,y]
-                fit = self._up['im_fit'][x,y]
-
                 self.residuals_text.setPos(pos)
-                self.residuals_text.setText("res = {:.2f}\n({:.1f}%)".format(
-                    res, res * 100 / fit))
+                self.residuals_text.setText("r = {:.2f}".format(
+                    self._up['im_res'][int(pos.x()),int(pos.y())]))
                 self.residuals_text.show()
 
         else:
-            for w in widgets:
+            for w in [self.cursor_v, self.cursor_h,
+                    self.cursor_text, self.cursor_delta,
+                    self.zoom_text, self.residuals_text]:
                 w.hide()
-            self.zoom_text.hide()
-            self.residuals_text.hide()
 
     @QtCore.pyqtSlot(tuple)
     def clicked_cb(self, evt):
@@ -271,13 +264,13 @@ class BeamDisplay(QtWidgets.QMainWindow):
             self.new_mark(pos)
 
     def get_color_map(self):
-        # Colour map for residuals is transparent when residual is zero
+        # Bipolar color map
         colors = np.array([
             (0, 255, 255, 255),
-            (0, 0, 255, 191),
-            (0, 0, 0, 0),
-            (255, 0, 0, 191),
-            (255, 255, 0, 255)
+            (0, 0, 255, 255),
+            (0, 0, 0, 255),
+            (255, 0, 0, 255),
+            (255, 255, 0, 255),
         ], dtype=np.uint8)
         positions = [0.25 * (2 + i) for i in range(-2,3)]
         return pg.ColorMap(positions, colors)
@@ -288,6 +281,7 @@ class BeamDisplay(QtWidgets.QMainWindow):
 
         self.init_graphics()
         self.init_info_pane()
+        self.add_tooltips()
         self.layout_graphics()
         self.layout_info_pane()
         self.connect_actions()
@@ -348,7 +342,7 @@ class BeamDisplay(QtWidgets.QMainWindow):
         # Obviously we don't want to hide the mark buttons themselves
         self.mark_widgets.extend([
             self.mark_x, self.mark_y,
-            self.x_delta, self.y_delta,
+            # self.x_delta, self.y_delta,
         ])
 
         self.fps = QtGui.QLabel()
@@ -427,8 +421,8 @@ class BeamDisplay(QtWidgets.QMainWindow):
     def layout_info_pane(self):
         """Add info pane widgets to their layout"""
         self.param_layout = QtWidgets.QFormLayout()
-        self.param_layout.addRow(QtGui.QLabel("Beam Parameters"))
-        self.param_layout.addRow(QtGui.QLabel("(all radii are 1/e^2)"))
+        self.param_layout.addRow(QtGui.QLabel("<b>Beam Parameters</b>"))
+        self.param_layout.addRow(QtGui.QLabel("<i>(all radii are 1/e<sup>2</sup>)</i>"))
         self.param_layout.addRow(QtGui.QWidget())
         self.param_layout.addRow("Semi-major radius:", self.maj_radius)
         self.param_layout.addRow("Semi-minor radius:", self.min_radius)
@@ -448,13 +442,13 @@ class BeamDisplay(QtWidgets.QMainWindow):
         dy_label = QtGui.QLabel("ΔY:")
         self.mark_widgets.extend([
             mark_x_label, mark_y_label,
-            dx_label, dy_label,
+            # dx_label, dy_label,
         ])
         self.param_layout.addRow(self.mark, self.unmark)
         self.param_layout.addRow(mark_x_label, self.mark_x)
         self.param_layout.addRow(mark_y_label, self.mark_y)
-        self.param_layout.addRow(dx_label, self.x_delta)
-        self.param_layout.addRow(dy_label, self.y_delta)
+        # self.param_layout.addRow(dx_label, self.x_delta)
+        # self.param_layout.addRow(dy_label, self.y_delta)
         for w in self.mark_widgets:
             w.hide()
 
@@ -488,6 +482,10 @@ class BeamDisplay(QtWidgets.QMainWindow):
         self.vb_image = self.g_layout.addViewBox(row=0, col=0, rowspan=2, **options)
         self.vb_zoom = self.g_layout.addViewBox(row=0, col=2, **options)
         self.vb_residuals = self.g_layout.addViewBox(row=1, col=2, **options)
+
+        # Link zoom and residual views
+        self.vb_zoom.setXLink(self.vb_residuals)
+        self.vb_zoom.setYLink(self.vb_residuals)
 
         # Viewboxes for slice data
         # Both boxes have mouse disabled - range is fixed so we don't want to
@@ -525,8 +523,6 @@ class BeamDisplay(QtWidgets.QMainWindow):
         self.vb_image.addItem(self.fit_h_line)
         self.vb_image.addItem(self.mark_v_line)
         self.vb_image.addItem(self.mark_h_line)
-        # self.vb_image.addItem(self.cursor_v)
-        # self.vb_image.addItem(self.cursor_h)
         # self.vb_image.addItem(self.cursor_text)
         self.vb_image.addItem(self.cursor_delta)
         self.vb_image.addItem(self.beam_delta)
@@ -544,8 +540,10 @@ class BeamDisplay(QtWidgets.QMainWindow):
         self.vb_residuals.addItem(self.residuals_text)
         self.vb_x.addItem(self.x_slice)
         self.vb_x.addItem(self.x_fit)
+        self.vb_x.addItem(self.cursor_v)
         self.vb_y.addItem(self.y_slice)
         self.vb_y.addItem(self.y_fit)
+        self.vb_y.addItem(self.cursor_h)
 
         self.res_legend.setParentItem(self.vb_residuals)
         self.cursor_text.setParentItem(self.vb_image)
@@ -575,5 +573,5 @@ class BeamDisplay(QtWidgets.QMainWindow):
         self.g_layout.setMinimumSize(1100,562)
 
     def add_tooltips(self):
-        #TODO
-        pass
+        self.mark.setToolTip("Place a mark at the current beam position")
+        self.unmark.setToolTip("Remove the mark")

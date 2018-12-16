@@ -57,6 +57,11 @@ class Worker(QtCore.QObject):
 
         iso_level = np.amax(im_fit) / np.exp(2)
 
+        # Correct for the fact that pixels are plotted with their origin at
+        # the top left corner
+        zoom_centre += QtCore.QPointF(0.5, 0.5)
+        p['x0'] += [0.5, 0.5]
+
         # construct our update dictionary
         update = {
             'im': im,

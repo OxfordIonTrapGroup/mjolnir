@@ -54,6 +54,6 @@ icon.addFile(pkg_resources.resource_filename(
 self.setWindowIcon(icon)
 ```
 
-* **BUG** The image fitting works great, but the lines appear half a pixel
-  above and to the left of where they should. This is because the pixel is
-  drawn to the bottom right of its index
+* Fixed. ~~**BUG** The image fitting works great, but the lines appear half a
+  pixel above and to the left of where they should. This is because the pixel
+  is drawn to the bottom right of its index~~

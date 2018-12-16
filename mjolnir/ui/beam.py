@@ -291,6 +291,7 @@ class BeamDisplay(QtWidgets.QMainWindow):
         self.widget.setLayout(self.layout)
         self.setCentralWidget(self.widget)
         self.setGeometry(300, 300, 1500, 600)
+        self.setWindowTitle("mjolnir")
 
     def connect_actions(self):
         """Connect triggers to their actions"""

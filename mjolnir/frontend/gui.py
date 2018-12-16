@@ -39,12 +39,19 @@ def remote(args):
     timer.timeout.connect(qt_update)
     timer.start(50) # timeout ms
 
+    title = b.windowTitle() + " (remote: {}, {}, {})".format(
+        args.server, args.artiq_port, args.zmq_port)
+    b.setWindowTitle(title)
+
 
 def local(args):
     ### Local operation ###
     camera = ThorlabsCCD()
     b = BeamDisplay(camera)
     camera.register_callback(lambda im: b.queue_image(im))
+
+    title = b.windowTitle() + " (local: {})".format(args.device)
+    b.setWindowTitle(title)
 
 
 def get_argparser():

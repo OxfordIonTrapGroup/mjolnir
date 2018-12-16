@@ -17,6 +17,9 @@ def main():
     b = BeamDisplay(camera)
     camera.register_callback(lambda im: b.queue_image(im))
 
+    title = b.windowTitle() + " (test)"
+    b.setWindowTitle(title)
+
     sys.exit(app.exec_())
 
 

@@ -19,8 +19,8 @@ RPC protocol soon which will make things much better.
 Follow the instructions for installing ARTIQ, then clone the
 repo and pip install mjolnir into your environment.
 
-Or if you just want the viewer (and not the server), download
-the executable, once I manage to make it!
+Or download the executable files, it's much easier...
+All but the launcher must have command line arguments supplied.
 
 
 ## Usage
@@ -32,7 +32,6 @@ Help is available by using `--help` with any of the commands.
 
 This is just a small launcher window that you can use to enter the
 main GUI.
-If you downloaded the executable, this is what will appear.
 Its main use is when the camera is connected locally, as it will
 (eventually once I implement this) list the serial numbers of all
 USB connected cameras.
@@ -85,9 +84,20 @@ unnecessarily.
 Comment out the `is_experiment` import and any function you find it in!
 
 
+### Building executables
+
+Python 3.6 and PyInstaller 3.4 seem to play nicely together. The built
+executable should be around 80MB.
+
+
 ### New features?
 
-Ask.
+Please let me know of any improvements you think could be made to the
+interface: I made decisions that made sense to me, but if they don't make sense
+to you I'll see what I can do!
+
+Some things should be implemented but are not - at the moment there is no way
+of setting the ROI of the camera, for example.
 
 
 ## Acknowledgements

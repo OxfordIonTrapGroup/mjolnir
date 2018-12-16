@@ -193,7 +193,8 @@ class BeamDisplay(QtWidgets.QMainWindow):
 
     @QtCore.pyqtSlot(tuple)
     def cursor_cb(self, scene_pos):
-        widgets = [self.cursor_v, self.cursor_h, self.cursor_text]
+        widgets = [self.cursor_v, self.cursor_h,
+                   self.cursor_text, self.cursor_delta]
         if self.is_within_image(scene_pos):
             pos = self.vb_image.mapSceneToView(scene_pos)
 
@@ -201,7 +202,13 @@ class BeamDisplay(QtWidgets.QMainWindow):
             self.cursor_h.setPos(pos)
             self.cursor_text.setPos(pos)
             self.cursor_text.setText(
-                "({:.1f}, {:.1f})".format(pos.x(), pos.y()))
+                "({:.1f}, {:.1f}) px".format(pos.x(), pos.y()))
+            if self._mark is not None:
+                delta = pos - self._mark
+                self.cursor_delta.setPos(pos)
+                self.cursor_delta.setText(
+                    "Δ = ({:.1f}, {:.1f}) μm".format(
+                        self.px_to_um(delta.x()), self.px_to_um(delta.y())))
 
             self.vb_image.setCursor(QtCore.Qt.CrossCursor)
             for w in widgets:
@@ -353,6 +360,8 @@ class BeamDisplay(QtWidgets.QMainWindow):
         self.cursor_v = pg.InfiniteLine(pos=1, angle=90, pen=wpen)
         self.cursor_h = pg.InfiniteLine(pos=1, angle=0, pen=wpen)
         self.cursor_text = pg.TextItem(anchor=(-0.1, 1.1))
+        self.cursor_delta = pg.TextItem(anchor=(-0.1, -0.1))
+        self.mark_widgets.append(self.cursor_delta)
 
         # Centroid position markers in zoomed image, aligned with beam
         # ellipse axes
@@ -468,6 +477,7 @@ class BeamDisplay(QtWidgets.QMainWindow):
         self.vb_image.addItem(self.cursor_v)
         self.vb_image.addItem(self.cursor_h)
         self.vb_image.addItem(self.cursor_text)
+        self.vb_image.addItem(self.cursor_delta)
         self.vb_image.addItem(self.history_plot)
         # Figure out how to overlay properly?
         # self.vb_image.addItem(self.x_slice)

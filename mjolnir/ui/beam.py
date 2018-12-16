@@ -31,14 +31,18 @@ class BeamDisplay(QtWidgets.QMainWindow):
 
         self._fps = None
         self._last_update = QtCore.QTime.currentTime()
+
         self._mark = None
         self._centroid = None
-        self._delta = None
+
         self._residual_levels = [-10,10]
+
         self._history_timer = QtCore.QTimer(self)
         self._history_timer.timeout.connect(self.age_history)
         self._history_timer.setInterval(150)
         self._history_timer.start()
+
+        self._up = None
 
         self.mark_widgets = []
 
@@ -57,6 +61,7 @@ class BeamDisplay(QtWidgets.QMainWindow):
             up = self.updateq.popleft()
         except IndexError:
             return
+        self._up = up
 
         options = {'autoRange': False, 'autoLevels': False}
         self.image.setImage(up['im'], **options)
@@ -167,7 +172,6 @@ class BeamDisplay(QtWidgets.QMainWindow):
 
     def unmark_cb(self):
         self._mark = None
-        self._delta = None
 
         for w in self.mark_widgets:
             w.hide()
@@ -175,14 +179,18 @@ class BeamDisplay(QtWidgets.QMainWindow):
     def update_deltas(self):
         if self._mark is None or self._centroid is None:
             return
-        self._delta = self._centroid - self._mark
-        self.x_delta.setText(self.px_string(self._delta.x()))
-        self.y_delta.setText(self.px_string(self._delta.y()))
+        delta = self._centroid - self._mark
+        self.x_delta.setText(self.px_string(delta.x()))
+        self.y_delta.setText(self.px_string(delta.y()))
+        self.beam_delta.setPos(self._centroid)
+        self.beam_delta.setText("Δ = ({:.1f}, {:.1f}) μm".format(
+            self.px_to_um(delta.x()),
+            self.px_to_um(delta.y())))
 
-    def is_within_image(self, scene_pos):
-        if self.vb_image.sceneBoundingRect().contains(scene_pos):
-            pos = self.vb_image.mapSceneToView(scene_pos)
-            upper = np.array(self.image.image.shape)
+    def is_within_image_meta(self, viewbox, imageitem, scene_pos):
+        if viewbox.sceneBoundingRect().contains(scene_pos):
+            pos = viewbox.mapSceneToView(scene_pos)
+            upper = np.array(imageitem.image.shape)
             lower = np.zeros(2)
             pos_tup = np.array((pos.x(), pos.y()))
 
@@ -191,16 +199,28 @@ class BeamDisplay(QtWidgets.QMainWindow):
                 return True
         return False
 
+    def is_within_image(self, scene_pos):
+        return self.is_within_image_meta(self.vb_image, self.image, scene_pos)
+
+    def is_within_zoom(self, scene_pos):
+        return self.is_within_image_meta(self.vb_zoom, self.zoom, scene_pos)
+
+    def is_within_residuals(self, scene_pos):
+        return self.is_within_image_meta(
+            self.vb_residuals, self.residuals, scene_pos)
+
     @QtCore.pyqtSlot(tuple)
     def cursor_cb(self, scene_pos):
         widgets = [self.cursor_v, self.cursor_h,
                    self.cursor_text, self.cursor_delta]
         if self.is_within_image(scene_pos):
+            # print(scene_pos, flush=True)
+
             pos = self.vb_image.mapSceneToView(scene_pos)
 
             self.cursor_v.setPos(pos)
             self.cursor_h.setPos(pos)
-            self.cursor_text.setPos(pos)
+            # self.cursor_text.setPos(pos)
             self.cursor_text.setText(
                 "({:.1f}, {:.1f}) px".format(pos.x(), pos.y()))
             if self._mark is not None:
@@ -210,13 +230,37 @@ class BeamDisplay(QtWidgets.QMainWindow):
                     "Δ = ({:.1f}, {:.1f}) μm".format(
                         self.px_to_um(delta.x()), self.px_to_um(delta.y())))
 
-            self.vb_image.setCursor(QtCore.Qt.CrossCursor)
             for w in widgets:
                 w.show()
+
+        elif self.is_within_zoom(scene_pos):
+            pos = self.vb_zoom.mapSceneToView(scene_pos)
+
+            if self._up is not None:
+                self.zoom_text.setPos(pos)
+                self.zoom_text.setText("I = {:.0f}".format(
+                    self._up['im_crop'][int(pos.x()), int(pos.y())]))
+                self.zoom_text.show()
+
+        elif self.is_within_residuals(scene_pos):
+            pos = self.vb_residuals.mapSceneToView(scene_pos)
+
+            if self._up is not None:
+                x = int(pos.x())
+                y = int(pos.y())
+                res = self._up['im_res'][x,y]
+                fit = self._up['im_fit'][x,y]
+
+                self.residuals_text.setPos(pos)
+                self.residuals_text.setText("res = {:.2f}\n({:.1f}%)".format(
+                    res, res * 100 / fit))
+                self.residuals_text.show()
+
         else:
-            self.vb_image.setCursor(QtCore.Qt.ArrowCursor)
             for w in widgets:
                 w.hide()
+            self.zoom_text.hide()
+            self.residuals_text.hide()
 
     @QtCore.pyqtSlot(tuple)
     def clicked_cb(self, evt):
@@ -325,7 +369,7 @@ class BeamDisplay(QtWidgets.QMainWindow):
         # lookup table and the legend
         cmap = self.get_color_map()
         self.residual_LUT = cmap.getLookupTable(nPts=256)
-        self.res_legend = pg.GradientLegend((10,255),(0, 20))
+        self.res_legend = pg.GradientLegend(size=(10,255), offset=(0,20))
         self.res_legend.setGradient(cmap.getGradient())
         n_ticks = 5
         self.res_legend.setLabels({"{}".format(level):val
@@ -357,11 +401,17 @@ class BeamDisplay(QtWidgets.QMainWindow):
 
         # Mouse cursor
         wpen = pg.mkPen(color=(255,255,255,63), width=3)
+        red = pg.mkColor(255,0,0,223)
+        yellow = pg.mkColor(255,255,0,223)
         self.cursor_v = pg.InfiniteLine(pos=1, angle=90, pen=wpen)
         self.cursor_h = pg.InfiniteLine(pos=1, angle=0, pen=wpen)
-        self.cursor_text = pg.TextItem(anchor=(-0.1, 1.1))
-        self.cursor_delta = pg.TextItem(anchor=(-0.1, -0.1))
+        self.cursor_text = pg.TextItem()
+        self.cursor_delta = pg.TextItem(anchor=(-0.1, -0.1), color=red)
+        self.beam_delta = pg.TextItem(anchor=(-0.1, -0.1), color=yellow)
+        self.zoom_text = pg.TextItem(anchor=(-0.1, -0.1), color=yellow)
+        self.residuals_text = pg.TextItem(anchor=(-0.1, -0.1))
         self.mark_widgets.append(self.cursor_delta)
+        self.mark_widgets.append(self.beam_delta)
 
         # Centroid position markers in zoomed image, aligned with beam
         # ellipse axes
@@ -429,6 +479,7 @@ class BeamDisplay(QtWidgets.QMainWindow):
         """Put graphics items in the layout"""
         # Graphics layout object to place viewboxes in
         self.g_layout = pg.GraphicsLayoutWidget(border=(80, 80, 80))
+        self.g_layout.setCursor(QtCore.Qt.CrossCursor)
 
         # Viewboxes for images
         # aspect locked so that pixels are square
@@ -474,10 +525,11 @@ class BeamDisplay(QtWidgets.QMainWindow):
         self.vb_image.addItem(self.fit_h_line)
         self.vb_image.addItem(self.mark_v_line)
         self.vb_image.addItem(self.mark_h_line)
-        self.vb_image.addItem(self.cursor_v)
-        self.vb_image.addItem(self.cursor_h)
-        self.vb_image.addItem(self.cursor_text)
+        # self.vb_image.addItem(self.cursor_v)
+        # self.vb_image.addItem(self.cursor_h)
+        # self.vb_image.addItem(self.cursor_text)
         self.vb_image.addItem(self.cursor_delta)
+        self.vb_image.addItem(self.beam_delta)
         self.vb_image.addItem(self.history_plot)
         # Figure out how to overlay properly?
         # self.vb_image.addItem(self.x_slice)
@@ -487,13 +539,16 @@ class BeamDisplay(QtWidgets.QMainWindow):
         self.vb_zoom.addItem(self.zoom)
         self.vb_zoom.addItem(self.fit_maj_line)
         self.vb_zoom.addItem(self.fit_min_line)
+        self.vb_zoom.addItem(self.zoom_text)
         self.vb_residuals.addItem(self.residuals)
+        self.vb_residuals.addItem(self.residuals_text)
         self.vb_x.addItem(self.x_slice)
         self.vb_x.addItem(self.x_fit)
         self.vb_y.addItem(self.y_slice)
         self.vb_y.addItem(self.y_fit)
 
         self.res_legend.setParentItem(self.vb_residuals)
+        self.cursor_text.setParentItem(self.vb_image)
 
         self.vb_image.setRange(QtCore.QRectF(0, 0, 1280, 1024))
         self.vb_zoom.setRange(QtCore.QRectF(0, 0, 50, 50))

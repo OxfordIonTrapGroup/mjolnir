@@ -32,11 +32,13 @@ class BeamDisplay(QtWidgets.QMainWindow):
         self._fps = None
         self._last_update = QtCore.QTime.currentTime()
         self._mark = None
-        self._centre = None
+        self._centroid = None
+        self._delta = None
         self._residual_levels = [-10,10]
         self._history_timer = QtCore.QTimer(self)
         self._history_timer.timeout.connect(self.age_history)
-        self._history_timer.start(150)
+        self._history_timer.setInterval(150)
+        self._history_timer.start()
 
         self.mark_widgets = []
 
@@ -67,19 +69,19 @@ class BeamDisplay(QtWidgets.QMainWindow):
         self.y_slice.setData(up['y_slice'], up['y'])
         self.y_fit.setData(up['y_fit'], up['y'])
 
-        # cache the centroid in case we need to set a mark
-        self._centre = up['x0']
-
         # Sub-pixel position works with QPointF
-        point = QtCore.QPointF(*up['x0'])
-        self.fit_v_line.setPos(point)
-        self.fit_h_line.setPos(point)
+        centroid = QtCore.QPointF(*up['x0'])
+        self.fit_v_line.setPos(centroid)
+        self.fit_h_line.setPos(centroid)
+
+        # cache the centroid in case we need to set a mark
+        self._centroid = centroid
 
         self.history.append(up['x0'])
         self.replot_history()
-        self._history_timer.start(150)
+        self._history_timer.start()
 
-        # 'centre' is a QPointF
+        # 'zoom_centre' is a QPointF
         self.fit_maj_line.setPos(up['zoom_centre'])
         self.fit_min_line.setPos(up['zoom_centre'])
         self.fit_maj_line.setAngle(up['semimaj_angle'])
@@ -98,9 +100,7 @@ class BeamDisplay(QtWidgets.QMainWindow):
         self.ellipticity.setText("{:.3f}".format(up['e']))
 
         if self._mark is not None:
-            delta = up['x0'] - self._mark
-            self.x_delta.setText(self.px_string(delta[0]))
-            self.y_delta.setText(self.px_string(delta[1]))
+            self.update_deltas()
 
         self._last_update, self._fps = tools.update_rate(
             self._last_update, self._fps)
@@ -144,29 +144,40 @@ class BeamDisplay(QtWidgets.QMainWindow):
         pass
 
     def mark_cb(self):
-        if self._centre is not None:
-            self._mark = self._centre
-        else:
-            self._mark = [0, 0]
-        point = QtCore.QPointF(*self._mark)
-        self.mark_v_line.setPos(point)
-        self.mark_h_line.setPos(point)
+        self.new_mark(mark=None)
 
-        # Not ideal but don't want to duplicate px_string from update
-        # If the user is using in continuous mode they'll never notice...
-        self.x_delta.setText('')
-        self.y_delta.setText('')
-        self.mark_x.setText("{:.1f}".format(self._mark[0]))
-        self.mark_y.setText("{:.1f}".format(self._mark[1]))
+    def new_mark(self, mark=None):
+        if mark is None:
+            if self._centroid is not None:
+                self._mark = self._centroid
+            else:
+                self._mark = QtCore.QPointF(0, 0)
+        else:
+            self._mark = mark
+        self.mark_v_line.setPos(self._mark)
+        self.mark_h_line.setPos(self._mark)
+
+        self.mark_x.setText(self.px_string(self._mark.x()))
+        self.mark_y.setText(self.px_string(self._mark.y()))
+
+        self.update_deltas()
 
         for w in self.mark_widgets:
             w.show()
 
     def unmark_cb(self):
         self._mark = None
+        self._delta = None
 
         for w in self.mark_widgets:
             w.hide()
+
+    def update_deltas(self):
+        if self._mark is None or self._centroid is None:
+            return
+        self._delta = self._centroid - self._mark
+        self.x_delta.setText(self.px_string(self._delta.x()))
+        self.y_delta.setText(self.px_string(self._delta.y()))
 
     def is_within_image(self, scene_pos):
         if self.vb_image.sceneBoundingRect().contains(scene_pos):
@@ -206,6 +217,7 @@ class BeamDisplay(QtWidgets.QMainWindow):
         if (evt.button() == 1 and not evt.double()
                 and self.is_within_image(scene_pos)):
             pos = self.vb_image.mapSceneToView(scene_pos)
+            self.new_mark(pos)
 
     def get_color_map(self):
         # Colour map for residuals is transparent when residual is zero
@@ -274,8 +286,8 @@ class BeamDisplay(QtWidgets.QMainWindow):
         self.unmark = QtGui.QPushButton("Unmark")
 
         # Mark location
-        self.mark_x = QtGui.QLineEdit()
-        self.mark_y = QtGui.QLineEdit()
+        self.mark_x = QtGui.QLabel()
+        self.mark_y = QtGui.QLabel()
 
         # Beam distance from marked location
         self.x_delta = QtGui.QLabel()

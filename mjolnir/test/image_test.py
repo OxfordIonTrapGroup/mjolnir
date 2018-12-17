@@ -6,7 +6,7 @@ from numpy.linalg import eig
 # import matplotlib.image as mpimg
 # from mpl_toolkits.mplot3d import Axes3D
 
-from mjolnir.tools.image_tools import gaussian_beam
+from mjolnir.tools.image import gaussian_beam
 
 
 def generate_image(

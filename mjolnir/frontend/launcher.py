@@ -2,7 +2,8 @@
 import sys
 from PyQt5 import QtGui, QtWidgets, QtCore
 
-from mjolnir.frontend.gui import get_parser
+from mjolnir.frontend.gui import get_argparser
+from mjolnir.drivers import uc480
 
 
 class ConnectionDialog(QtWidgets.QDialog):
@@ -16,7 +17,8 @@ class ConnectionDialog(QtWidgets.QDialog):
     """
     def __init__(self):
         super().__init__()
-        self.parser = get_parser()
+        self.lib = None
+        self.parser = get_argparser()
         self.init_ui()
 
     def init_connection(self):
@@ -29,7 +31,7 @@ class ConnectionDialog(QtWidgets.QDialog):
                 ])
         elif self.conn_type.currentIndex() == 1:
             argv.extend([
-                    "-d", str(self.serial_number.text())
+                    "-d", str(self.serial_number.currentText())
                 ])
 
         try:
@@ -40,11 +42,24 @@ class ConnectionDialog(QtWidgets.QDialog):
             self.error_message.show()
             return
 
-        try:
-            args.func(args)
-        except Exception as e:
-            self.error_message.setText(
-                "Error initialising: {}".format(e))
+        args.func(args)
+        self.done(0)
+        # try:
+        #     args.func(args)
+        # except Exception as e:
+        #     self.error_message.setText(
+        #         "Error initialising: {}".format(e))
+
+    def _get_cam_list(self):
+        lib = uc480.uc480()
+        lib.get_cameras()
+        self.cameras = [lib._cam_list.uci[i]
+            for i in range(lib._cam_list.dwCount)]
+        self.serials = [cam.SerNo.decode() for cam in self.cameras]
+
+        self.serial_number.clear()
+        self.serial_number.insertItems(0, self.serials)
+        del lib
 
     def init_ui(self):
         self.conn_type = QtGui.QComboBox()
@@ -66,7 +81,10 @@ class ConnectionDialog(QtWidgets.QDialog):
 
         # Local connection parameters
         # Could add a fetch numbers and replace this with a QComboBox
-        self.serial_number = QtGui.QLineEdit()
+        self.get_cam_list = QtGui.QPushButton("Get Camera List")
+        self.get_cam_list.clicked.connect(self._get_cam_list)
+        self.serial_number = QtGui.QComboBox()
+        self.serial_number.setEditable(True)
 
         self.conn_params = QtGui.QStackedWidget()
         self.conn_type.currentIndexChanged.connect(
@@ -87,6 +105,7 @@ class ConnectionDialog(QtWidgets.QDialog):
         self.remote_params_widget.setLayout(self.remote_layout)
 
         self.local_layout = QtWidgets.QFormLayout()
+        self.local_layout.addRow(self.get_cam_list)
         self.local_layout.addRow("Serial Number:", self.serial_number)
         self.local_params_widget = QtGui.QWidget()
         self.local_params_widget.setLayout(self.local_layout)

@@ -16,6 +16,8 @@ def get_argparser():
     parser.add_argument("--broadcast-images", action="store_true")
     parser.add_argument("--zmq-bind", default="*")
     parser.add_argument("--zmq-port", default=5555, type=int)
+    parser.add_argument("--device", "-d", type=int, default=None,
+        help="camera serial number, uses first available if not supplied")
     return parser
 
 
@@ -42,7 +44,7 @@ def main():
     args = get_argparser().parse_args()
     init_logger(args)
 
-    dev = ThorlabsCCD(id_=args.device)
+    dev = ThorlabsCCD(sn=args.device)
     run_server(dev, args)
 
 

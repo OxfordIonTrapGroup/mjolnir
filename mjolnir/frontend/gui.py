@@ -2,6 +2,7 @@
 import zmq
 import sys
 import argparse
+import atexit
 from PyQt5 import QtWidgets, QtCore
 from artiq.protocols.pc_rpc import Client
 
@@ -46,13 +47,13 @@ def remote(args):
 
 def local(args):
     ### Local operation ###
-    camera = ThorlabsCCD()
+    camera = ThorlabsCCD(args.device)
     b = BeamDisplay(camera)
     camera.register_callback(lambda im: b.queue_image(im))
+    atexit.register(camera.close)
 
     title = b.windowTitle() + " (local: {})".format(args.device)
     b.setWindowTitle(title)
-
 
 def get_argparser():
     parser = argparse.ArgumentParser(description="GUI for Thorlabs CMOS cameras")

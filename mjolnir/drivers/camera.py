@@ -46,8 +46,8 @@ class ThorlabsCCD:
     # Servo polling period in seconds
     _POLL_PERIOD = 0.05
 
-    def __init__(self, id_=None, framebuffer_len=100):
-        self.camera_id = id_ if id_ is not None else 0
+    def __init__(self, sn=None, framebuffer_len=100):
+        self.camera_sn = sn
 
         self.quit = False
         self.dead = False
@@ -55,7 +55,7 @@ class ThorlabsCCD:
 
         self.acquisition_enabled = False
 
-        self.auto_exposure = True
+        self.auto_exposure = False
         self.exposure = None
         self.exposure_min = None
         self.exposure_max = None
@@ -77,10 +77,18 @@ class ThorlabsCCD:
 
     def _library_cleanup(self):
         del self.c._lib
+        del self.c
 
     def _connect(self):
         """Connect to camera"""
-        self.c.connect(self.camera_id)
+        id_ = 0
+        for i in range(self.c._cam_list.dwCount):
+            camera = self.c._cam_list.uci[i]
+            if self.camera_sn == int(camera.SerNo.decode()):
+                id_ = camera.dwCameraID
+        if self.camera_sn is not None and id_ == 0:
+            raise ValueError("Camera {} not found".format(self.camera_sn))
+        self.c.connect(id_)
         self._get_sensor_info()
         self._get_exposure_params()
         self._get_aoi()
@@ -109,7 +117,7 @@ class ThorlabsCCD:
                 try:
                     # print("waiting", flush=True)
                     im = timeout(1)(self.c.acquire)(native=True)
-                    im = np.tranpose(im)
+                    im = np.transpose(im)
                     # from here on in, the first axis of im is the x axis
                     # print("acquired!", flush=True)
                 except (MyTimeoutError, uc480.uc480Error) as e:
@@ -325,4 +333,8 @@ class ThorlabsCCD:
         self._library_cleanup()
 
     def __del__(self):
-        self.close()
+        try:
+            self.close()
+        except AttributeError:
+            # The library was already cleaned up
+            pass

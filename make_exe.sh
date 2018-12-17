@@ -1,5 +1,7 @@
-pyinstaller mjolnir/test/gui_test.py -y -d all --clean --onefile --windowed
-#pyinstaller mjolnir/frontend/launcher.py -y --clean --onefile --windowed
+pyinstaller mjolnir/test/gui_test.py -y -d all --clean --onefile --windowed -n mjolnir_test.exe &
+pyinstaller mjolnir/frontend/launcher.py -y --clean --onefile --windowed -n mjolnir_launcher.exe &
+pyinstaller mjolnir/frontend/server.py -y --clean --onefile -n mjolnir_server.exe &
+pyinstaller mjolnir/frontend/gui.py -y --clean --onefile -n mjolnir_gui.exe &
 
 # These aren't needed any more
 # --exclude-module matplotlib

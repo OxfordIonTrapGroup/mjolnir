@@ -58,6 +58,12 @@ def check_shape(x, y):
     assert y.shape == (m, n)
 
 
+def check_fit_plausible(y):
+    if np.amin(y) * 10 > np.amax(y):
+        raise RuntimeError("Insufficient contrast")
+    return True
+
+
 def parameter_initialiser(x, y, centroid_only=False):
     """naively calculate centroid and covariance of data"""
     # x is like np.mgrid[0:m,0:n]
@@ -78,6 +84,7 @@ def parameter_initialiser(x, y, centroid_only=False):
     x = np.einsum("i...->...i", x)
     d = x - x0
 
+    # 1.2x speedup possible with ['einsum_path', (0, 1), (0, 1)]
     cov = np.einsum("ijk,ij,ijl->kl", d, prob, d)
 
     p = {}
@@ -145,10 +152,10 @@ class GaussianBeam:
         p = parameter_initialiser(xdata, ydata, centroid_only=True)
 
         xcrop, ycrop = cls.crop(xdata, ydata, p['x0'], region=region)
+        check_fit_plausible(ycrop)
         p = parameter_initialiser(xcrop, ycrop)
         p.update(cls.compute_derived_properties(p))
         return p
-
 
     @classmethod
     def lsq_fit(cls, xdata, ydata, p0_dict=None, **kwargs):
@@ -157,6 +164,7 @@ class GaussianBeam:
         If no initial estimate is provided, will use the one_step_MLE
         to start with. This is inefficient and should be revised.
         """
+        check_fit_plausible(ydata)
         if p0_dict is None:
             p0 = unpack(parameter_initialiser(xdata, ydata))
         else:
@@ -177,7 +185,7 @@ class GaussianBeam:
         p = parameter_initialiser(xdata, ydata, centroid_only=True)
 
         xcrop, ycrop = cls.crop(xdata, ydata, p['x0'], region=region)
-        return self.lsq_fit(xcrop, ycrop, p0_dict=p)
+        return cls.lsq_fit(xcrop, ycrop, p0_dict=None)
 
     @classmethod
     def _get_limits(cls, x0, shape, region=50):

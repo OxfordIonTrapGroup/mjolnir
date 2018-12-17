@@ -57,3 +57,10 @@ self.setWindowIcon(icon)
 * Fixed. ~~**BUG** The image fitting works great, but the lines appear half a
   pixel above and to the left of where they should. This is because the pixel
   is drawn to the bottom right of its index~~
+
+
+### Camera interfacing
+
+At the moment uses a random person's interface to the camera DLL. Thorlabs
+cameras are rebranded IDS uEye cameras - there is a pyuEye package available
+from IDS which may prove useful, as interfacing with C is a little annoying.

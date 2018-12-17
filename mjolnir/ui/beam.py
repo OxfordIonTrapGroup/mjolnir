@@ -35,7 +35,7 @@ class BeamDisplay(QtWidgets.QMainWindow):
         self._mark = None
         self._centroid = None
 
-        self._residual_levels = [-10,10]
+        self._residual_levels = [-1,1]
 
         self._history_timer = QtCore.QTimer(self)
         self._history_timer.timeout.connect(self.age_history)
@@ -57,6 +57,11 @@ class BeamDisplay(QtWidgets.QMainWindow):
 
     @QtCore.pyqtSlot()
     def update(self):
+        def finish():
+            self._last_update, self._fps = tools.update_rate(
+                self._last_update, self._fps)
+            self.fps.setText("{:.1f} fps".format(self._fps))
+
         try:
             up = self.updateq.popleft()
         except IndexError:
@@ -65,6 +70,12 @@ class BeamDisplay(QtWidgets.QMainWindow):
 
         options = {'autoRange': False, 'autoLevels': False}
         self.image.setImage(up['im'], **options)
+
+        failure = up.get('failure', None)
+        if failure:
+            finish()
+            return
+
         self.zoom.setImage(up['im_crop'], **options)
         self.residuals.setImage(up['im_res'], lut=self.residual_LUT, **options)
 
@@ -107,9 +118,7 @@ class BeamDisplay(QtWidgets.QMainWindow):
         if self._mark is not None:
             self.update_deltas()
 
-        self._last_update, self._fps = tools.update_rate(
-            self._last_update, self._fps)
-        self.fps.setText("{:.1f} fps".format(self._fps))
+        finish()
 
     def px_string(self, px):
         return "{:.1f}μm ({:.1f}px)".format(px*self._px_width, px)
@@ -237,7 +246,7 @@ class BeamDisplay(QtWidgets.QMainWindow):
             if self._up is not None:
                 self.zoom_text.setPos(pos)
                 self.zoom_text.setText("I = {:.0f}".format(
-                    self._up['im_crop'][int(pos.x()), int(pos.y())]))
+                    self.zoom.image[int(pos.x()), int(pos.y())]))
                 self.zoom_text.show()
 
         elif self.is_within_residuals(scene_pos):
@@ -246,7 +255,7 @@ class BeamDisplay(QtWidgets.QMainWindow):
             if self._up is not None:
                 self.residuals_text.setPos(pos)
                 self.residuals_text.setText("r = {:.2f}".format(
-                    self._up['im_res'][int(pos.x()),int(pos.y())]))
+                    self.residuals.image[int(pos.x()),int(pos.y())]))
                 self.residuals_text.show()
 
         else:

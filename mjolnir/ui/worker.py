@@ -27,18 +27,45 @@ class Worker(QtCore.QObject):
             self.process_image(im)
 
     def process_image(self, im):
+        def finish(update):
+            # calulate number of updates per second
+            self._last_update, self._cps = tools.update_rate(
+                self._last_update, self._cps)
+            update['cps'] = self._cps
+
+            self.updateq.append(update)
+            self.new_update.emit()
+
         m, n = im.shape
         pxmap = np.mgrid[0:m,0:n]
-
         region = self._region
-        p = GaussianBeam.two_step_MLE(pxmap, im, region)
+
+        if (np.amax(im) - np.amin(im)) < 100:
+            update = {'im': im, 'failure': "Contrast too low"}
+            finish(update)
+            return
+
+        try:
+            # p = GaussianBeam.two_step_MLE(pxmap, im, region)
+            p = GaussianBeam.lsq_cropped(pxmap, im, region)
+        except RuntimeError as e:
+            update = {'im': im, 'failure': str(e)}
+            finish(update)
+            return
+
         pxcrop, im_crop = GaussianBeam.crop(pxmap, im, p['x0'], region)
-
         im_fit = GaussianBeam.f(pxcrop, p)
-        im_res = im_crop - im_fit
 
-        r_max = np.amax(np.abs(im_res))
-        res_fraction = r_max/np.amax(im_fit)
+        # Correct for the fact that pixels are plotted with their origin at
+        # the top left corner
+        p['x0'] += [0.5, 0.5]
+
+        # residuals normalised to the pixel value
+        im_err = np.sqrt(im_crop)
+        im_err[im_err==0] = 1.0
+        # Truncate because pixel values are integer, so for zero pixel value
+        # our residual would otherwise look much worse than it is
+        im_res = np.trunc(im_crop - im_fit)/im_err
 
         zoom_origin = pxcrop[:,0,0]
         # just in case max pixel is not exactly centred
@@ -57,18 +84,12 @@ class Worker(QtCore.QObject):
 
         iso_level = np.amax(im_fit) / np.exp(2)
 
-        # Correct for the fact that pixels are plotted with their origin at
-        # the top left corner
-        zoom_centre += QtCore.QPointF(0.5, 0.5)
-        p['x0'] += [0.5, 0.5]
-
         # construct our update dictionary
         update = {
             'im': im,
             'im_crop': im_crop,
             'im_fit': im_fit,
             'im_res': im_res,
-            'res_fraction': res_fraction,
             'x': x,
             'x_slice': x_slice,
             'x_fit': x_fit,
@@ -83,14 +104,8 @@ class Worker(QtCore.QObject):
         # add all the fit parameters to the update
         update.update(p)
 
-        # calulate number of updates per second
-        self._last_update, self._cps = tools.update_rate(
-            self._last_update, self._cps)
-        update['cps'] = self._cps
+        finish(update)
 
-        self.updateq.append(update)
-        self.new_update.emit()
-        self._working = False
 
     @QtCore.pyqtSlot(int)
     def set_region(self, value):

@@ -1,0 +1,9 @@
+__pycache__/
+build/
+dist/
+*.bmp
+*.egg-info
+*.pyc
+*.pyo
+*.spec
+*.zip

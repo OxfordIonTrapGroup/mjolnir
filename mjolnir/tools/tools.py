@@ -13,7 +13,7 @@ def update_rate(last, ups=None):
     :returns: now, update_rate
     """
     now = QtCore.QTime.currentTime()
-    dt = float(last.msecsTo(now))/1000
+    dt = np.maximum(float(last.msecsTo(now))/1000, 0.001)
     if ups is None:
         ups = 1.0 / dt
     else:

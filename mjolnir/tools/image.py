@@ -64,6 +64,11 @@ def check_fit_plausible(y):
     return True
 
 
+def find_maximum(y):
+    """Find maximum pixel location"""
+    return {'x0': np.unravel_index(np.argmax(y), y.shape)}
+
+
 def parameter_initialiser(x, y, centroid_only=False):
     """naively calculate centroid and covariance of data"""
     # x is like np.mgrid[0:m,0:n]
@@ -133,9 +138,9 @@ class GaussianBeam:
 
     @classmethod
     def one_step_MLE(cls, xdata, ydata):
-        """Performs MLE of parameters on full image
+        """Calculates MLE of fit parameters on full image.
 
-        Can be skewed by noise far from the centroid, and is slow. Avoid.
+        Is heavily skewed by background - avoid using on the full image!
         """
         p = parameter_initialiser(xdata, ydata)
         p.update(cls.compute_derived_properties(p))
@@ -143,28 +148,24 @@ class GaussianBeam:
 
     @classmethod
     def two_step_MLE(cls, xdata, ydata, region=50):
-        """Estimates centroid, then performs MLE on cropped image
+        """Calculates MLE on image cropped around maximum pixel value.
 
-        Fast and fairly accurate - good for real time plotting.
-        If cropping is too aggressive, will have systematic error visible in
-        residuals.
+        Fast, but more error than the `lsq_cropped` method.
         """
-        p = parameter_initialiser(xdata, ydata, centroid_only=True)
+        p = find_maximum(ydata)
 
         xcrop, ycrop = cls.crop(xdata, ydata, p['x0'], region=region)
-        check_fit_plausible(ycrop)
         p = parameter_initialiser(xcrop, ycrop)
         p.update(cls.compute_derived_properties(p))
         return p
 
     @classmethod
     def lsq_fit(cls, xdata, ydata, p0_dict=None, **kwargs):
-        """Least squares fit on all data points
+        """Least squares fit on full image.
 
         If no initial estimate is provided, will use the one_step_MLE
-        to start with. This is inefficient and should be revised.
+        to estimate parameters.
         """
-        check_fit_plausible(ydata)
         if p0_dict is None:
             p0 = unpack(parameter_initialiser(xdata, ydata))
         else:
@@ -181,8 +182,11 @@ class GaussianBeam:
 
     @classmethod
     def lsq_cropped(cls, xdata, ydata, region=50):
-        """Estimates centroid, then uses least squares on cropped data"""
-        p = parameter_initialiser(xdata, ydata, centroid_only=True)
+        """Least squares fit on image cropped around maximum pixel value.
+
+        Fast enough, and accurate.
+        """
+        p = find_maximum(ydata)
 
         xcrop, ycrop = cls.crop(xdata, ydata, p['x0'], region=region)
         return cls.lsq_fit(xcrop, ycrop, p0_dict=None)
@@ -209,7 +213,6 @@ class GaussianBeam:
     @classmethod
     def compute_derived_properties(cls, p):
         """Calculates useful properties from fitted parameter dict"""
-
         cov = p['cov']
 
         params = {}

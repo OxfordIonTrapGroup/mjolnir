@@ -46,19 +46,15 @@ class Worker(QtCore.QObject):
             return
 
         try:
-            # p = GaussianBeam.two_step_MLE(pxmap, im, region)
             p = GaussianBeam.lsq_cropped(pxmap, im, region)
-        except RuntimeError as e:
+        except Exception as e:
+            # We really don't want a fit failure to kill the GUI
             update = {'im': im, 'failure': str(e)}
             finish(update)
             return
 
         pxcrop, im_crop = GaussianBeam.crop(pxmap, im, p['x0'], region)
         im_fit = GaussianBeam.f(pxcrop, p)
-
-        # Correct for the fact that pixels are plotted with their origin at
-        # the top left corner
-        p['x0'] += [0.5, 0.5]
 
         # residuals normalised to the pixel value
         im_err = np.sqrt(im_crop)
@@ -80,9 +76,13 @@ class Worker(QtCore.QObject):
         y_slice = im[px_x0[0],:]
         y_fit = GaussianBeam.f(pxmap[:,px_x0[0],:],p)
 
-        zoom_centre = QtCore.QPointF(*(p['x0']-pxcrop[:,0,0]))
-
         iso_level = np.amax(im_fit) / np.exp(2)
+
+        # Correct for the fact that pixels are plotted with their origin at
+        # the top left corner
+        # Note that this comes after all fits have been calculated!
+        p['x0'] += [0.5, 0.5]
+        zoom_centre = QtCore.QPointF(*(p['x0']-zoom_origin))
 
         # construct our update dictionary
         update = {

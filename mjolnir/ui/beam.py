@@ -35,7 +35,7 @@ class BeamDisplay(QtWidgets.QMainWindow):
         self._mark = None
         self._centroid = None
 
-        self._residual_levels = [-1,1]
+        self._residual_levels = [-2,2]
 
         self._history_timer = QtCore.QTimer(self)
         self._history_timer.timeout.connect(self.age_history)
@@ -73,6 +73,7 @@ class BeamDisplay(QtWidgets.QMainWindow):
 
         failure = up.get('failure', None)
         if failure:
+            self.error_message.setText(failure)
             finish()
             return
 
@@ -357,6 +358,7 @@ class BeamDisplay(QtWidgets.QMainWindow):
         ])
 
         self.fps = QtGui.QLabel()
+        self.error_message = QtGui.QLabel()
 
     def init_graphics(self):
         """Initialise the important graphics items"""
@@ -476,6 +478,7 @@ class BeamDisplay(QtWidgets.QMainWindow):
         self.info_pane_layout.addWidget(self.param_widget)
         self.info_pane_layout.addStretch(3)
         self.info_pane_layout.addWidget(self.fps)
+        self.info_pane_layout.addWidget(self.error_message)
 
         self.info_pane = QtWidgets.QWidget(self)
         self.info_pane.setLayout(self.info_pane_layout)

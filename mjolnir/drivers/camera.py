@@ -85,10 +85,10 @@ class ThorlabsCCD:
         for i in range(self.c._cam_list.dwCount):
             camera = self.c._cam_list.uci[i]
             if self.camera_sn == int(camera.SerNo.decode()):
-                id_ = camera.dwCameraID
+                id_ = camera.dwDeviceID
         if self.camera_sn is not None and id_ == 0:
             raise ValueError("Camera {} not found".format(self.camera_sn))
-        self.c.connect(id_)
+        self.c.connect(id_, useDevID=True)
         self._get_sensor_info()
         self._get_exposure_params()
         self._get_aoi()

@@ -34,8 +34,9 @@ def run_server(dev, args):
         socket = create_zmq_server(args.zmq_bind, args.zmq_port)
         dev.register_callback(lambda im: socket.send_pyobj(im))
 
+    sn = dev.get_serial_no()
     try:
-        simple_server_loop({"camera": dev}, args.bind, args.port)
+        simple_server_loop({"thorcam sn:{}".format(sn): dev}, args.bind, args.port)
     finally:
         dev.close()
 

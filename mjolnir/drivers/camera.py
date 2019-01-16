@@ -1,12 +1,11 @@
 from . import uc480
-# print("imported uc480", flush=True)
 import numpy as np
 import ctypes
 import collections
 import time
-
-from threading import Thread
 import functools
+from threading import Thread
+
 
 # Thresholds for increasing and decreasing exposure
 auto_exposure_max_threshold = 220
@@ -93,6 +92,7 @@ class ThorlabsCCD:
         self._get_exposure_params()
         self._get_aoi()
         self._get_aoi_absolute()
+        self._set_pixel_clock()
         self.connected = True
 
     def _disconnect(self):
@@ -156,6 +156,11 @@ class ThorlabsCCD:
     def stop_acquisition(self):
         """Turn off auto acquire"""
         self.acquisition_enabled = False
+
+    def _set_pixel_clock(self, clock=20):
+        """Set the pixel clock in MHz, defaults to 20MHz"""
+        self.c.call("is_PixelClock", self.c._camID, uc480.IS_PIXELCLOCK_CMD_SET,
+            ctypes.pointer(ctypes.c_int(clock)), ctypes.sizeof(ctypes.c_int))
 
     def _get_exposure_params(self):
         self.exposure = self.c.get_exposure()

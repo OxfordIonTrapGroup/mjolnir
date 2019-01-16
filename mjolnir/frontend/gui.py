@@ -3,11 +3,16 @@ import zmq
 import sys
 import argparse
 import atexit
+import logging
 from PyQt5 import QtWidgets, QtCore
 from artiq.protocols.pc_rpc import Client
 
 from mjolnir.ui.beam import BeamDisplay
 from mjolnir.drivers.camera import ThorlabsCCD
+
+
+logger = logging.getLogger(__name__)
+# logging.basicConfig(level=logging.INFO)
 
 
 def zmq_setup(ctx, server, port):

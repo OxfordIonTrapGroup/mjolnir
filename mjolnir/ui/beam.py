@@ -61,6 +61,7 @@ class BeamDisplay(QtWidgets.QMainWindow):
             self._last_update, self._fps = tools.update_rate(
                 self._last_update, self._fps)
             self.fps.setText("{:.1f} fps".format(self._fps))
+            self.fps.show()
 
         try:
             up = self.updateq.popleft()
@@ -73,9 +74,12 @@ class BeamDisplay(QtWidgets.QMainWindow):
 
         failure = up.get('failure', None)
         if failure:
-            self.error_message.setText(failure)
+            self.message.setText(failure)
+            self.message.show()
             finish()
             return
+        else:
+            self.message.hide()
 
         self.zoom.setImage(up['im_crop'], **options)
         self.residuals.setImage(up['im_res'], lut=self.residual_LUT, **options)
@@ -309,6 +313,8 @@ class BeamDisplay(QtWidgets.QMainWindow):
         self.single_acq.clicked.connect(lambda: self.cam.single_acquisition())
         self.start_acq.clicked.connect(lambda: self.cam.start_acquisition())
         self.stop_acq.clicked.connect(lambda: self.cam.stop_acquisition())
+        self.stop_acq.clicked.connect(lambda: self.fps.hide())
+        self.stop_acq.clicked.connect(lambda: self.message.setText("Stopped"))
         # connect after finding params so we don't send accidental update
         self.exposure.valueChanged.connect(self.exposure_cb)
         self.mark.clicked.connect(self.mark_cb)
@@ -358,7 +364,7 @@ class BeamDisplay(QtWidgets.QMainWindow):
         ])
 
         self.fps = QtGui.QLabel()
-        self.error_message = QtGui.QLabel()
+        self.message = QtGui.QLabel("Stopped")
 
     def init_graphics(self):
         """Initialise the important graphics items"""
@@ -478,7 +484,7 @@ class BeamDisplay(QtWidgets.QMainWindow):
         self.info_pane_layout.addWidget(self.param_widget)
         self.info_pane_layout.addStretch(3)
         self.info_pane_layout.addWidget(self.fps)
-        self.info_pane_layout.addWidget(self.error_message)
+        self.info_pane_layout.addWidget(self.message)
 
         self.info_pane = QtWidgets.QWidget(self)
         self.info_pane.setLayout(self.info_pane_layout)

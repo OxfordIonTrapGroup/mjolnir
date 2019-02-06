@@ -131,6 +131,7 @@ class ThorlabsCCD:
                     # from here on in, the first axis of im is the x axis
                     # print("acquired!", flush=True)
                 except (MyTimeoutError, uc480.uc480Error) as e:
+                    logger.exception("Exception occurred, reconnecting")
                     self._reconnect()
                 else:
                     im = self._crop_to_aoi(im)
@@ -178,8 +179,8 @@ class ThorlabsCCD:
         self.c.call("is_GetCameraInfo", self.c._camID, ctypes.pointer(cam_info))
         return cam_info
 
-    def _set_pixel_clock(self, clock=20):
-        """Set the pixel clock in MHz, defaults to 20MHz"""
+    def _set_pixel_clock(self, clock=10):
+        """Set the pixel clock in MHz, defaults to 10MHz"""
         self.c.call("is_PixelClock", self.c._camID, uc480.IS_PIXELCLOCK_CMD_SET,
             ctypes.pointer(ctypes.c_int(clock)), ctypes.sizeof(ctypes.c_int))
 

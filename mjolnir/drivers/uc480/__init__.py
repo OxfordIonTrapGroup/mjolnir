@@ -110,7 +110,7 @@ class uc480:
         func = getattr(self._lib, function, None)
         if func is not None:
             if _linux and function in ["is_RenderBitmap", "is_GetDC", "is_ReleaseDC", "is_UpdateDisplay",
-                                       "is_SetDisplayMode", "is_SetDisplayPos", "is_SetHwnd", "is_SetUpdateMode",
+                                       "is_SetDisplayPos", "is_SetHwnd", "is_SetUpdateMode",
                                        "is_GetColorDepth", "is_SetOptimalCameraTiming", "is_DirectRenderer"]:
                 logger.warning(("WARNING: Function %s is not supported by this library version.." % function))
             else:
@@ -132,7 +132,7 @@ class uc480:
         func = getattr(self._lib, function, None)
         if func is not None:
             if _linux and function in ["is_RenderBitmap", "is_GetDC", "is_ReleaseDC", "is_UpdateDisplay",
-                                       "is_SetDisplayMode", "is_SetDisplayPos", "is_SetHwnd", "is_SetUpdateMode",
+                                       "is_SetDisplayPos", "is_SetHwnd", "is_SetUpdateMode",
                                        "is_GetColorDepth", "is_SetOptimalCameraTiming", "is_DirectRenderer"]:
                 logger.warning(("WARNING: Function %s is not supported by this library version.." % function))
             else:
@@ -148,22 +148,18 @@ class uc480:
 
             - **uc480.dll** on Win32
             - **uc480_64.dll** on Win64
-            - **libueye_api.so.3.82** on Linux32
-            - **libueye_api64.so.3.82** on Linux64.
+            - **libueye_api.so** on Linux (check this, but appeared to be for v4.91)
 
         :param str library: If not None, try to connect to the given library name.
         """
         logger.debug("Load uc480 library..")
 
         if library is None:
-            if (platform.architecture()[0] == "32bit"):
-                if _linux:
-                    self._lib = ctypes.cdll.LoadLibrary("libueye_api.so.3.82")
-                else:
-                    self._lib = ctypes.cdll.LoadLibrary("uc480.dll")
+            if _linux:
+                self._lib = ctypes.cdll.LoadLibrary("libueye_api.so")
             else:
-                if _linux:
-                    self._lib = ctypes.cdll.LoadLibrary("libueye_api64.so.3.82")
+                if (platform.architecture()[0] == "32bit"):
+                    self._lib = ctypes.cdll.LoadLibrary("uc480.dll")
                 else:
                     self._lib = ctypes.cdll.LoadLibrary("uc480_64.dll")
         else:
@@ -378,7 +374,9 @@ class uc480:
         data = None
         for i in range(int(N)):
             logger.debug("  wait for data..")
-            while self.query("is_FreezeVideo", self._camID, IS_WAIT) != IS_SUCCESS:
+            ret = self.query("is_FreezeVideo", self._camID, IS_WAIT)
+            while ret != IS_SUCCESS:
+                logger.debug("is_FreezeVideo returned: {}".format(ret))
                 time.sleep(0.1)
             logger.debug("  read data..")
             if data is None:

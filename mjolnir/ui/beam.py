@@ -81,44 +81,47 @@ class BeamDisplay(QtWidgets.QMainWindow):
         else:
             self.message.hide()
 
-        self.zoom.setImage(up['im_crop'], **options)
-        self.residuals.setImage(up['im_res'], lut=self.residual_LUT, **options)
+        try:
+            self.zoom.setImage(up['im_crop'], **options)
+            self.residuals.setImage(up['im_res'], lut=self.residual_LUT, **options)
 
-        self.x_slice.setData(up['x'], up['x_slice'])
-        self.x_fit.setData(up['x'], up['x_fit'])
+            self.x_slice.setData(up['x'], up['x_slice'])
+            self.x_fit.setData(up['x'], up['x_fit'])
 
-        self.y_slice.setData(up['y_slice'], up['y'])
-        self.y_fit.setData(up['y_fit'], up['y'])
+            self.y_slice.setData(up['y_slice'], up['y'])
+            self.y_fit.setData(up['y_fit'], up['y'])
 
-        # Sub-pixel position works with QPointF
-        centroid = QtCore.QPointF(*up['x0'])
-        self.fit_v_line.setPos(centroid)
-        self.fit_h_line.setPos(centroid)
+            # Sub-pixel position works with QPointF
+            centroid = QtCore.QPointF(*up['x0'])
+            self.fit_v_line.setPos(centroid)
+            self.fit_h_line.setPos(centroid)
 
-        # cache the centroid in case we need to set a mark
-        self._centroid = centroid
+            # cache the centroid in case we need to set a mark
+            self._centroid = centroid
 
-        self.history.append(up['x0'])
-        self.replot_history()
-        self._history_timer.start()
+            self.history.append(up['x0'])
+            self.replot_history()
+            self._history_timer.start()
 
-        # 'zoom_centre' is a QPointF
-        self.fit_maj_line.setPos(up['zoom_centre'])
-        self.fit_min_line.setPos(up['zoom_centre'])
-        self.fit_maj_line.setAngle(up['semimaj_angle'])
-        self.fit_min_line.setAngle(up['semimin_angle'])
+            # 'zoom_centre' is a QPointF
+            self.fit_maj_line.setPos(up['zoom_centre'])
+            self.fit_min_line.setPos(up['zoom_centre'])
+            self.fit_maj_line.setAngle(up['semimaj_angle'])
+            self.fit_min_line.setAngle(up['semimin_angle'])
 
-        self.isocurve.setLevel(up['iso_level'])
-        self.isocurve.setData(up['im_fit'])
+            self.isocurve.setLevel(up['iso_level'])
+            self.isocurve.setData(up['im_fit'])
 
-        self.maj_radius.setText(self.px_string(up['semimaj']))
-        self.min_radius.setText(self.px_string(up['semimin']))
-        self.avg_radius.setText(self.px_string(up['avg_radius']))
-        self.x_radius.setText(self.px_string(up['x_radius']))
-        self.y_radius.setText(self.px_string(up['y_radius']))
-        self.x_centroid.setText(self.px_string(up['x0'][0]))
-        self.y_centroid.setText(self.px_string(up['x0'][1]))
-        self.ellipticity.setText("{:.3f}".format(up['e']))
+            self.maj_radius.setText(self.px_string(up['semimaj']))
+            self.min_radius.setText(self.px_string(up['semimin']))
+            self.avg_radius.setText(self.px_string(up['avg_radius']))
+            self.x_radius.setText(self.px_string(up['x_radius']))
+            self.y_radius.setText(self.px_string(up['y_radius']))
+            self.x_centroid.setText(self.px_string(up['x0'][0]))
+            self.y_centroid.setText(self.px_string(up['x0'][1]))
+            self.ellipticity.setText("{:.3f}".format(up['e']))
+        except KeyError:
+            return
 
         if self._mark is not None:
             self.update_deltas()

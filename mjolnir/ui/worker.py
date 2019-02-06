@@ -54,6 +54,12 @@ class Worker(QtCore.QObject):
             return
 
         pxcrop, im_crop = GaussianBeam.crop(pxmap, im, p['x0'], region)
+        if not len(pxcrop):
+            # Centre was outside the actual image
+            update = {'im': im, 'failure': "Bad centre"}
+            finish(update)
+            return
+
         im_fit = GaussianBeam.f(pxcrop, p)
 
         # residuals normalised to the pixel value

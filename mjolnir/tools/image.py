@@ -69,6 +69,27 @@ def find_maximum(y):
     return {'x0': np.unravel_index(np.argmax(y), y.shape)}
 
 
+def downsample(img, factor, pxmap=None):
+    """Use averaged binning to downsample an image
+
+    Returns the binned image and a pixel map corresponding to the centres
+    of the binned pixels
+    """
+    # Factor must divide all images dimensions
+    assert not np.any(np.array(img.shape) % factor)
+
+    sh = (img.shape[0] // factor, factor, img.shape[1] // factor, factor)
+    binned_img = img.reshape(sh).mean(-1).mean(1)
+
+    if pxmap is not None:
+        binned_pxmap = pxmap.reshape((2,) + sh).mean(-1).mean(2)
+    else:
+        binned_pxmap = (np.mgrid[0:img.shape[0]:factor, 0:img.shape[1]:factor]
+            + (factor - 1)/2)
+
+    return binned_img, binned_pxmap
+
+
 def parameter_initialiser(x, y, centroid_only=False):
     """naively calculate centroid and covariance of data"""
     # x is like np.mgrid[0:m,0:n]

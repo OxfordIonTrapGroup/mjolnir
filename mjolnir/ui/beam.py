@@ -325,6 +325,8 @@ class BeamDisplay(QtWidgets.QMainWindow):
         self.mark.clicked.connect(self.mark_cb)
         self.unmark.clicked.connect(self.unmark_cb)
 
+        self.region.valueChanged.connect(self.worker.set_region)
+
         proxy = pg.SignalProxy(self.g_layout.scene().sigMouseMoved,
             rateLimit=20, slot=self.cursor_cb)
         self.g_layout.scene().sigMouseMoved.connect(self.cursor_cb)
@@ -367,6 +369,10 @@ class BeamDisplay(QtWidgets.QMainWindow):
             self.mark_x, self.mark_y,
             # self.x_delta, self.y_delta,
         ])
+
+        self.region = QtGui.QDoubleSpinBox()
+        self.region.setRange(0, 1000)
+        self.region.setSingleStep(1.)
 
         self.fps = QtGui.QLabel()
         self.message = QtGui.QLabel()
@@ -476,6 +482,7 @@ class BeamDisplay(QtWidgets.QMainWindow):
         # self.param_layout.addRow(dy_label, self.y_delta)
         for w in self.mark_widgets:
             w.hide()
+        self.param_layout.addRow("Fit region:", self.region)
 
         self.param_widget = QtGui.QWidget()
         self.param_widget.setLayout(self.param_layout)

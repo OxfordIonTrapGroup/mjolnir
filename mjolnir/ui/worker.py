@@ -1,8 +1,12 @@
+import logging
 import numpy as np
 from PyQt5 import QtCore
 
-from mjolnir.tools.image import GaussianBeam
+from mjolnir.tools.image import GaussianBeam, crop, downsample
 from mjolnir.tools import tools
+
+
+logger = logging.getLogger(__name__)
 
 
 class Worker(QtCore.QObject):
@@ -13,7 +17,8 @@ class Worker(QtCore.QObject):
 
         self._cps = None
         self._last_update = QtCore.QTime.currentTime()
-        self._region = 50
+        self._region = 20
+        self._dwnsmp = None
         self.imageq = imageq
         self.updateq = updateq
 
@@ -39,6 +44,7 @@ class Worker(QtCore.QObject):
         m, n = im.shape
         pxmap = np.mgrid[0:m,0:n]
         region = self._region
+        dwnsmp = self._dwnsmp
 
         if (np.amax(im) - np.amin(im)) < 100:
             update = {'im': im, 'failure': "Contrast too low"}
@@ -46,21 +52,36 @@ class Worker(QtCore.QObject):
             return
 
         try:
-            p = GaussianBeam.lsq_cropped(pxmap, im, region)
+            p = GaussianBeam.fit(im, crp=region, dwnsmp=dwnsmp)
+        except RuntimeError:
+            update = {'im': im, 'failure': "Least squares fit failed"}
+            finish(update)
+            return
         except Exception as e:
             # We really don't want a fit failure to kill the GUI
             update = {'im': im, 'failure': str(e)}
+            logger.exception("Fit failure")
             finish(update)
             return
 
-        pxcrop, im_crop = GaussianBeam.crop(pxmap, im, p['x0'], region)
-        if not len(pxcrop):
+        # crop respects any downsampling if present
+        im_crop, px_crop = crop(im, p['x0'], region, dwnsmp=dwnsmp)
+        if not np.all(px_crop.shape):
             # Centre was outside the actual image
             update = {'im': im, 'failure': "Bad centre"}
             finish(update)
             return
 
-        im_fit = GaussianBeam.f(pxcrop, p)
+        zoom_centre = p['x0'] + [0.5, 0.5] - px_crop[:,0,0]
+
+        if dwnsmp is not None:
+            # Note that this will likely leave px_crop as floats
+            im_crop, px_crop = downsample(im_crop, dwnsmp, pxmap=px_crop)
+
+            # Need to correct centre for downsampling
+            zoom_centre /= dwnsmp
+
+        im_fit = GaussianBeam.f(px_crop, p)
 
         # residuals normalised to the pixel value
         im_err = np.sqrt(im_crop)
@@ -69,10 +90,7 @@ class Worker(QtCore.QObject):
         # our residual would otherwise look much worse than it is
         im_res = np.trunc(im_crop - im_fit)/im_err
 
-        zoom_origin = pxcrop[:,0,0]
-        # just in case max pixel is not exactly centred
-        px_x0 = np.unravel_index(np.argmax(im_fit), im_fit.shape)
-        px_x0 += zoom_origin
+        px_x0 = np.around(p['x0']).astype(int)
 
         x = pxmap[0,:,0]
         x_slice = im[:,px_x0[1]]
@@ -88,7 +106,7 @@ class Worker(QtCore.QObject):
         # the top left corner
         # Note that this comes after all fits have been calculated!
         p['x0'] += [0.5, 0.5]
-        zoom_centre = QtCore.QPointF(*(p['x0']-zoom_origin))
+        zoom_centre = QtCore.QPointF(*zoom_centre)
 
         # construct our update dictionary
         update = {
@@ -102,7 +120,7 @@ class Worker(QtCore.QObject):
             'y': y,
             'y_slice': y_slice,
             'y_fit': y_fit,
-            'zoom_origin': zoom_origin,
+            # 'zoom_origin': zoom_origin,
             'zoom_centre': zoom_centre,
             'iso_level': iso_level
         }
@@ -112,7 +130,19 @@ class Worker(QtCore.QObject):
 
         finish(update)
 
-
-    @QtCore.pyqtSlot(int)
+    @QtCore.pyqtSlot('double')
     def set_region(self, value):
-        self._region = value
+        value = int(value)
+
+        if value <= 20:
+            self._region = 20
+            self._dwnsmp = None
+        elif value <= 50:
+            self._region = value
+            self._dwnsmp = None
+        else:
+            self._dwnsmp = value // 40
+            self._region = self._dwnsmp * 40
+
+        logger.info("Set region: {}".format(self._region))
+        logger.info("Set downsampling: {}".format(self._dwnsmp))

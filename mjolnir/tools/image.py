@@ -70,13 +70,20 @@ def find_maximum(y):
 
 
 def downsample(img, factor, pxmap=None):
-    """Use averaged binning to downsample an image
+    """Use averaged binning to downsample an image, returning downsampled
+    image and the pixel map giving the coordinates of each binned pixel.
 
-    Returns the binned image and a pixel map corresponding to the centres
-    of the binned pixels
+    :param img: image to downsample, as 2D numpy array
+    :param factor: downsampling factor
+    :param pxmap: optional pixel coordinate mapping of image, to be binned
+        as well. Otherwise assumes integer pixel numbers indexed from 0 for
+        the input image.
+
+    :returns: img, pxmap: the binned image and pixel coordinate map of the
+        binned pixel centres
     """
-    # Factor must divide all images dimensions
-    assert not np.any(np.array(img.shape) % factor)
+    if np.any(np.array(img.shape) % factor):
+        raise ValueError("Downsampling factor must divide image dimensions!")
 
     sh = (img.shape[0] // factor, factor, img.shape[1] // factor, factor)
     binned_img = img.reshape(sh).mean(-1).mean(1)
@@ -88,6 +95,75 @@ def downsample(img, factor, pxmap=None):
             + (factor - 1)/2)
 
     return binned_img, binned_pxmap
+
+
+def crop(img, centre, region, pxmap=None, dwnsmp=None):
+    """Crop an image given centroid and region, returning the cropped image
+    and the pixel map giving the coordinates of each pixel.
+
+    :param img: image to crop, as 2D numpy array
+    :param centre: coordinates of centre of cropped region. Will be cast to
+        integer.
+    :param region: size of cropped region. Will be internally truncated to
+        nearest even number.
+    :param pxmap: optional pixel coordinate mapping of image, to be cropped
+        as well. Otherwise assumes integer pixel numbers indexed from 0 for
+        the input image.
+    :param dwnsmp: optional downsampling factor to consider when cropping.
+        Ensure the cropped region is an integer multiple of the
+        downsampling factor.
+
+    :returns: img, pxmap: the cropped image, plus its pixel coordinate map
+    """
+    if pxmap is None:
+        pxmap = np.mgrid[0:img.shape[0], 0:img.shape[1]]
+
+    llim = np.amin(pxmap, axis=(1,2))
+    ulim = np.amax(pxmap, axis=(1,2))
+
+    # Do we actually want this check?
+    if np.any(centre < llim) or np.any(centre > ulim):
+        raise ValueError("Centre is outside image")
+
+    region = int(region)
+    if dwnsmp is None:
+        hr = region // 2
+    elif dwnsmp % 2:
+        hr = region // (2 * dwnsmp) * dwnsmp
+    else:
+        hr = region // dwnsmp * dwnsmp / 2
+
+    # If pixel map has non-integer values we can't use it for slicing,
+    # so make sure the centre is in native pixel coordinates and then work
+    # with those
+    # (This does assume strictly increasing coordinates)
+    pxc = np.argwhere(
+        np.all(np.moveaxis(pxmap, 0, -1) >= centre, axis=-1))[0].astype(int)
+
+    lims = np.array([pxc - hr, pxc + hr]).astype(int)
+    lims = np.clip(lims, [0, 0], np.array(img.shape) - 1)
+
+    diffs = np.diff(lims, axis=0)[0]
+    if not np.all(diffs):
+        raise ValueError("Crop parameters caused zero size cropped image")
+
+    if dwnsmp:
+        for j, diff in enumerate(diffs):
+            if diff % dwnsmp:
+                # already forced region to be divisible by downsampling
+                # factor, so we must have run into the clip at the edges
+                diff = diff // dwnsmp * dwnsmp
+                if lims[0,j] == 0:
+                    lims[1,j] = diff
+                elif lims[1,j] == img.shape[1] - 1:
+                    lims[0,j] = lims[1,j] - diff
+
+    xmin, xmax, ymin, ymax = lims.T.flatten()
+
+    cropped_img = img[xmin:xmax, ymin:ymax]
+    cropped_pxmap = pxmap[:, xmin:xmax, ymin:ymax]
+
+    return cropped_img, cropped_pxmap
 
 
 def parameter_initialiser(x, y, centroid_only=False):
@@ -107,6 +183,7 @@ def parameter_initialiser(x, y, centroid_only=False):
     x0 = np.einsum("ijk,jk->i", x, prob)
 
     # reshape x to find distances from mean position
+    # equivalent to np.moveaxis(x, 0, -1)
     x = np.einsum("i...->...i", x)
     d = x - x0
 
@@ -156,6 +233,35 @@ class GaussianBeam:
                   - offset: z offset, default 0
         """
         return _fitting_function(xdata, p)
+
+    @classmethod
+    def fit(cls, img, crp=None, dwnsmp=None, pxmap=None):
+        """Least squares fit function which can crop and downsample.
+
+        This is the function to use going forwards.
+        """
+        if crp is not None and dwnsmp is not None:
+            assert crp % dwnsmp == 0
+        elif dwnsmp is not None:
+            assert not np.any(np.array(img.shape) % dwnsmp)
+
+        p0 = find_maximum(img)
+        if crp is not None:
+            img, pxmap = crop(img, p0['x0'], crp, pxmap=pxmap, dwnsmp=dwnsmp)
+
+        if dwnsmp is not None:
+            img, pxmap = downsample(img, dwnsmp, pxmap=pxmap)
+
+        p0 = unpack(parameter_initialiser(pxmap, img))
+
+        check_shape(pxmap, img)
+        xdata = pxmap.reshape(2, -1)
+        ydata = img.reshape(-1)     #just flatten
+
+        p_fit, p_err = curve_fit(fitting_function, xdata, ydata, p0=p0)
+        p = pack(p_fit)
+        p.update(cls.compute_derived_properties(p))
+        return p
 
     @classmethod
     def one_step_MLE(cls, xdata, ydata):

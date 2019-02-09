@@ -24,11 +24,11 @@ def generate_image(
     # scale it
     img *= intensity/np.amax(img)
 
-    # TODO: add noise
     if noise is not None:
-        pass
+        img_noise = np.random.normal(scale=noise, size=(m,n))
+        img += img_noise
 
-    return img.astype(int)
+    return np.clip(img.astype(int), 0, 255)
 
 
 

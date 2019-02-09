@@ -101,6 +101,9 @@ def crop(img, centre, region, pxmap=None, dwnsmp=None):
     """Crop an image given centroid and region, returning the cropped image
     and the pixel map giving the coordinates of each pixel.
 
+    All parameters (apart from image values) should be given as integers, and
+    pixel map (if given) should be in increasing order.
+
     :param img: image to crop, as 2D numpy array
     :param centre: coordinates of centre of cropped region. Will be cast to
         integer.
@@ -118,14 +121,13 @@ def crop(img, centre, region, pxmap=None, dwnsmp=None):
     if pxmap is None:
         pxmap = np.mgrid[0:img.shape[0], 0:img.shape[1]]
 
-    llim = np.amin(pxmap, axis=(1,2))
-    ulim = np.amax(pxmap, axis=(1,2))
+    llim = pxmap[:, 0, 0]
+    ulim = pxmap[:, -1, -1]
 
     # Do we actually want this check?
     if np.any(centre < llim) or np.any(centre > ulim):
         raise ValueError("Centre is outside image")
 
-    region = int(region)
     if dwnsmp is None:
         hr = region // 2
     elif dwnsmp % 2:
@@ -133,12 +135,8 @@ def crop(img, centre, region, pxmap=None, dwnsmp=None):
     else:
         hr = region // dwnsmp * dwnsmp / 2
 
-    # If pixel map has non-integer values we can't use it for slicing,
-    # so make sure the centre is in native pixel coordinates and then work
-    # with those
-    # (This does assume strictly increasing coordinates)
-    pxc = np.argwhere(
-        np.all(np.moveaxis(pxmap, 0, -1) >= centre, axis=-1))[0].astype(int)
+    # Work in pixel coordinates, not using mapping
+    pxc = (centre - llim).astype(int)
 
     lims = np.array([pxc - hr, pxc + hr]).astype(int)
     lims = np.clip(lims, [0, 0], np.array(img.shape) - 1)

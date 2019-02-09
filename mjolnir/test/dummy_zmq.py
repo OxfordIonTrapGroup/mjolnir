@@ -22,9 +22,11 @@ logger = logging.getLogger(__name__)
 class DummyCamera:
     def __init__(self, *args, **kwargs):
         # Cache some images to spew out
-        space = np.linspace(0, 2*np.pi, num=10, endpoint=False)
-        centroids = np.array([200 + 100*np.sin(space), 400 + 200*np.cos(space)])
-        frames = [generate_image(c) for c in centroids.T]
+        num = 10
+        space = np.linspace(0, 2*np.pi, num=num, endpoint=False)
+        centroids = np.array([500 + 10*np.sin(space), 500 + 20*np.cos(space)])
+        covs = np.outer(np.geomspace(1, 1e4, num=num), [1, 0, 0, 1.1]).reshape(-1, 2, 2)
+        frames = [generate_image(c, cov=cov, noise=5) for c, cov in zip(centroids.T, covs)]
 
         self._framegen = itertools.cycle(frames)
         self._frame = None

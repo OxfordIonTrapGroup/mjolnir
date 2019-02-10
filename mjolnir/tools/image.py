@@ -164,6 +164,49 @@ def crop(img, centre, region, pxmap=None, dwnsmp=None):
     return cropped_img, cropped_pxmap
 
 
+def auto_crop(img, pxmap=None, dwnsmp=None):
+    """Auto crop an image to provide the best possible fit.
+
+    :param img: image to crop
+    :param pxmap: optional pixel map to be cropped and downsampled.
+        Otherwise assume integer numbers indexed from zero.
+    :param dwnsmp: optional downsampling choice, None for no downsampling
+        or "auto" for best fit speed (will choose a downsampling factor that
+        produces a 20x20 image or smaller)
+    :returns: img, pxmap, dwnsmp; cropped image, pixel map for the cropped
+        image, and a downsampling factor to use with it.
+    """
+    max_ = np.amax(img)
+    min_ = np.amin(img)
+    dark_level = int(min_ + np.exp(-2) * (max_ - min_))
+    centre = np.unravel_index(np.argmax(img), img.shape)
+
+    region = img.shape[0]
+    crp = img.astype(int)
+    fill = np.mean(crp > dark_level)
+    px = pxmap
+    for i in range(3):
+        # Should converge extremely rapidly
+        if 0.3 < fill < 0.7:
+            break
+        region *= np.sqrt(fill/0.5)
+        if dwnsmp is not None:
+            dwnsmp = region // 20
+        if dwnsmp == 0:
+            dwnsmp = 1
+        dwnsmp = int(dwnsmp)
+        crp, px = crop(img, centre, region, pxmap=pxmap, dwnsmp=dwnsmp)
+        fill = np.mean(crp > dark_level)
+    else:
+        raise RuntimeError("Autocrop max number of iterations")
+
+    if dwnsmp is not None:
+        # downsample after choosing size
+        downsample(crp, dwnsmp, pxmap=px)
+
+    return crp, px, dwnsmp
+
+
 def parameter_initialiser(x, y, centroid_only=False):
     """naively calculate centroid and covariance of data"""
     # x is like np.mgrid[0:m,0:n]

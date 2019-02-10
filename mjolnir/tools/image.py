@@ -164,7 +164,7 @@ def crop(img, centre, region, pxmap=None, dwnsmp=None):
     return cropped_img, cropped_pxmap
 
 
-def auto_crop(img, pxmap=None, dwnsmp=None):
+def auto_crop(img, pxmap=None, dwnsmp=None, method="mean"):
     """Auto crop an image to provide the best possible fit.
 
     :param img: image to crop
@@ -173,30 +173,42 @@ def auto_crop(img, pxmap=None, dwnsmp=None):
     :param dwnsmp: optional downsampling choice, None for no downsampling
         or "auto" for best fit speed (will choose a downsampling factor that
         produces a 20x20 image or smaller)
+    :param method: choose from "mean" or "compare"
     :returns: img, pxmap, dwnsmp; cropped image, pixel map for the cropped
         image, and a downsampling factor to use with it.
     """
     max_ = np.amax(img)
     min_ = np.amin(img)
-    dark_level = int(min_ + np.exp(-2) * (max_ - min_))
+    contrast = (max_ - min_)
     centre = np.unravel_index(np.argmax(img), img.shape)
+
+    if method == "compare":
+        # Compares each pixel against the dark value
+        f = lambda img: np.mean(img > int(min_ + np.exp(-2) * contrast))
+    elif method == "mean":
+        # Tries to get to a target mean pixel value
+        f = lambda img: 0.5 * np.mean(img) / (min_ + contrast/4)
+
+    # Function for finding the next region size
+    r = lambda region, fill: region * np.sqrt(fill / 0.5)
 
     region = img.shape[0]
     crp = img.astype(int)
-    fill = np.mean(crp > dark_level)
     px = pxmap
-    for i in range(3):
+    fill = f(crp)
+    for i in range(10):
         # Should converge extremely rapidly
         if 0.3 < fill < 0.7:
             break
-        region *= np.sqrt(fill/0.5)
+        region = r(region, fill)
         if dwnsmp is not None:
             dwnsmp = region // 20
-        if dwnsmp == 0:
-            dwnsmp = 1
-        dwnsmp = int(dwnsmp)
+            dwnsmp = int(dwnsmp)
+            if dwnsmp == 0:
+                dwnsmp = 1
         crp, px = crop(img, centre, region, pxmap=pxmap, dwnsmp=dwnsmp)
-        fill = np.mean(crp > dark_level)
+        fill = f(crp)
+
     else:
         raise RuntimeError("Autocrop max number of iterations")
 

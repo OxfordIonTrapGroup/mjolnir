@@ -233,23 +233,21 @@ class GaussianBeam:
         return _fitting_function(xdata, p)
 
     @classmethod
-    def fit(cls, img, crp=None, dwnsmp=None, pxmap=None):
-        """Least squares fit function which can crop and downsample.
+    def fit(cls, img, pxmap=None):
+        """Fits a gaussian beam with least squares.
 
-        This is the function to use going forwards.
+        Note: this is extremely slow on large images, so images should be
+        cropped and downsampled appropriately before attempting to fit if
+        responsiveness is desired. The fitting is susceptible to pixel
+        noise if the fitting region is much larger than the beam, so aim
+        for the beam to fill approximately 50% of the image.
+
+        :param img: image to fit
+        :param pxmap: optional pixel map for the image. otherwise assumes
+            integer numbers indexed from 0
+
+        :returns: p, dictionary of fitted and derived parameters
         """
-        if crp is not None and dwnsmp is not None:
-            assert crp % dwnsmp == 0
-        elif dwnsmp is not None:
-            assert not np.any(np.array(img.shape) % dwnsmp)
-
-        p0 = find_maximum(img)
-        if crp is not None:
-            img, pxmap = crop(img, p0['x0'], crp, pxmap=pxmap, dwnsmp=dwnsmp)
-
-        if dwnsmp is not None:
-            img, pxmap = downsample(img, dwnsmp, pxmap=pxmap)
-
         p0 = unpack(parameter_initialiser(pxmap, img))
 
         check_shape(pxmap, img)
@@ -262,82 +260,12 @@ class GaussianBeam:
         return p
 
     @classmethod
-    def one_step_MLE(cls, xdata, ydata):
-        """Calculates MLE of fit parameters on full image.
-
-        Is heavily skewed by background - avoid using on the full image!
-        """
-        p = parameter_initialiser(xdata, ydata)
-        p.update(cls.compute_derived_properties(p))
-        return p
-
-    @classmethod
-    def two_step_MLE(cls, xdata, ydata, region=50):
-        """Calculates MLE on image cropped around maximum pixel value.
-
-        Fast, but more error than the `lsq_cropped` method.
-        """
-        p = find_maximum(ydata)
-
-        xcrop, ycrop = cls.crop(xdata, ydata, p['x0'], region=region)
-        p = parameter_initialiser(xcrop, ycrop)
-        p.update(cls.compute_derived_properties(p))
-        return p
-
-    @classmethod
-    def lsq_fit(cls, xdata, ydata, p0_dict=None, **kwargs):
-        """Least squares fit on full image.
-
-        If no initial estimate is provided, will use the one_step_MLE
-        to estimate parameters.
-        """
-        if p0_dict is None:
-            p0 = unpack(parameter_initialiser(xdata, ydata))
-        else:
-            p0 = unpack(p0_dict)
-
-        check_shape(xdata, ydata)
-        xdata = xdata.reshape(2, -1)
-        ydata = ydata.reshape(-1)     #just flatten
-
-        p_fit, p_err = curve_fit(fitting_function, xdata, ydata, p0=p0)
-        p = pack(p_fit)
-        p.update(cls.compute_derived_properties(p))
-        return p
-
-    @classmethod
-    def lsq_cropped(cls, xdata, ydata, region=50):
-        """Least squares fit on image cropped around maximum pixel value.
-
-        Fast enough, and accurate.
-        """
-        p = find_maximum(ydata)
-
-        xcrop, ycrop = cls.crop(xdata, ydata, p['x0'], region=region)
-        return cls.lsq_fit(xcrop, ycrop, p0_dict=None)
-
-    @classmethod
-    def _get_limits(cls, x0, shape, region=50):
-        """Returns cropped coordinates (imin, imax, jmin, jmax)
-
-        Will ensure that all points are within bounds.
-        """
-        hr = int(region/2)
-        x0 = np.around(x0).astype(int)
-        lims = np.array([x0-hr, x0+hr])
-        return np.clip(lims, [0,0], np.array(shape)-1).T.flatten()
-
-    @classmethod
-    def crop(cls, xdata, ydata, x0, region=50):
-        """Crops both pixel map and image given centroid and region"""
-        imin, imax, jmin, jmax = cls._get_limits(x0, ydata.shape, region)
-        xcrop = xdata[:, imin:imax, jmin:jmax]
-        ycrop = ydata[imin:imax, jmin:jmax]
-        return xcrop, ycrop
-
-    @classmethod
     def compute_derived_properties(cls, p):
-        """Calculates useful properties from fitted parameter dict"""
+        """Calculates useful properties from fitted parameter dict.
+
+        :param p: fitted parameter dictionary
+        :returns: params, dictionary of derived parameters
+        """
         cov = p['cov']
 
         params = {}

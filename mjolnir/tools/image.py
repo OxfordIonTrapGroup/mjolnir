@@ -69,12 +69,12 @@ def find_maximum(y):
     return {'x0': np.unravel_index(np.argmax(y), y.shape)}
 
 
-def downsample(img, factor, pxmap=None):
+def downsample(img, dwnsmp, pxmap=None):
     """Use averaged binning to downsample an image, returning downsampled
     image and the pixel map giving the coordinates of each binned pixel.
 
     :param img: image to downsample, as 2D numpy array
-    :param factor: downsampling factor
+    :param dwnsmp: downsampling factor
     :param pxmap: optional pixel coordinate mapping of image, to be binned
         as well. Otherwise assumes integer pixel numbers indexed from 0 for
         the input image.
@@ -82,17 +82,17 @@ def downsample(img, factor, pxmap=None):
     :returns: img, pxmap: the binned image and pixel coordinate map of the
         binned pixel centres
     """
-    if np.any(np.array(img.shape) % factor):
+    if np.any(np.array(img.shape) % dwnsmp):
         raise ValueError("Downsampling factor must divide image dimensions!")
 
-    sh = (img.shape[0] // factor, factor, img.shape[1] // factor, factor)
+    sh = (img.shape[0] // dwnsmp, dwnsmp, img.shape[1] // dwnsmp, dwnsmp)
     binned_img = img.reshape(sh).mean(-1).mean(1)
 
     if pxmap is not None:
         binned_pxmap = pxmap.reshape((2,) + sh).mean(-1).mean(2)
     else:
-        binned_pxmap = (np.mgrid[0:img.shape[0]:factor, 0:img.shape[1]:factor]
-            + (factor - 1)/2)
+        binned_pxmap = (np.mgrid[0:img.shape[0]:dwnsmp, 0:img.shape[1]:dwnsmp]
+            + (dwnsmp - 1)/2)
 
     return binned_img, binned_pxmap
 

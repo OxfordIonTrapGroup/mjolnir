@@ -2,7 +2,7 @@ import logging
 import numpy as np
 from PyQt5 import QtCore
 
-from mjolnir.tools.image import GaussianBeam, crop, downsample
+from mjolnir.tools.image import GaussianBeam, auto_crop
 from mjolnir.tools import tools
 
 
@@ -52,9 +52,22 @@ class Worker(QtCore.QObject):
             return
 
         try:
-            p = GaussianBeam.fit(im, crp=region, dwnsmp=dwnsmp)
+            im_crop, px_crop = auto_crop(im, dwnsmp_size=20)
+            dwnsmp = px_crop[0,1,0] - px_crop[0,0,0]
+        except Exception as e:
+            logger.exception("auto_crop failed")
+            update = {'im': im, 'failure': str(e)}
+            finish(update)
+            return
+
+        try:
+            p = GaussianBeam.fit(im_crop, pxmap=px_crop)
         except RuntimeError:
-            update = {'im': im, 'failure': "Least squares fit failed"}
+            update = {
+                'im': im,
+                'im_crop': im_crop,
+                'failure': "Least squares fit failed"
+            }
             finish(update)
             return
         except Exception as e:
@@ -64,22 +77,14 @@ class Worker(QtCore.QObject):
             finish(update)
             return
 
-        # crop respects any downsampling if present
-        im_crop, px_crop = crop(im, p['x0'], region, dwnsmp=dwnsmp)
-        if not np.all(px_crop.shape):
-            # Centre was outside the actual image
-            update = {'im': im, 'failure': "Bad centre"}
+        if np.any(p['x0'] < pxmap[:,0,0]) or np.any(p['x0'] > pxmap[:,-1,-1]):
+            update = {'im': im, 'failure': "Centre outside image"}
             finish(update)
             return
 
-        zoom_centre = p['x0'] + [0.5, 0.5] - px_crop[:,0,0]
-
-        if dwnsmp is not None:
-            # Note that this will likely leave px_crop as floats
-            im_crop, px_crop = downsample(im_crop, dwnsmp, pxmap=px_crop)
-
-            # Need to correct centre for downsampling
-            zoom_centre /= dwnsmp
+        # Need to correct centre for downsampling
+        zoom_centre = (p['x0'] - px_crop[:,0,0]) / dwnsmp + [0.5, 0.5]
+        zoom_centre = QtCore.QPointF(*zoom_centre)
 
         im_fit = GaussianBeam.f(px_crop, p)
 
@@ -106,7 +111,6 @@ class Worker(QtCore.QObject):
         # the top left corner
         # Note that this comes after all fits have been calculated!
         p['x0'] += [0.5, 0.5]
-        zoom_centre = QtCore.QPointF(*zoom_centre)
 
         # construct our update dictionary
         update = {

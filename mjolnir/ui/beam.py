@@ -72,6 +72,11 @@ class BeamDisplay(QtWidgets.QMainWindow):
         options = {'autoRange': False, 'autoLevels': False}
         self.image.setImage(up['im'], **options)
 
+        try:
+            self.zoom.setImage(up['im_crop'], **options)
+        except KeyError:
+            pass
+
         failure = up.get('failure', None)
         if failure:
             self.message.setText(failure)
@@ -82,7 +87,6 @@ class BeamDisplay(QtWidgets.QMainWindow):
             self.message.hide()
 
         try:
-            self.zoom.setImage(up['im_crop'], **options)
             self.residuals.setImage(up['im_res'], lut=self.residual_LUT, **options)
 
             self.x_slice.setData(up['x'], up['x_slice'])

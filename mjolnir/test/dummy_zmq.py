@@ -25,8 +25,9 @@ class DummyCamera:
         num = 10
         space = np.linspace(0, 2*np.pi, num=num, endpoint=False)
         centroids = np.array([500 + 10*np.sin(space), 500 + 20*np.cos(space)])
-        covs = np.outer(np.geomspace(1, 1e4, num=num), [1, 0, 0, 1.1]).reshape(-1, 2, 2)
-        frames = [generate_image(c, cov=cov, noise=5) for c, cov in zip(centroids.T, covs)]
+        covs = np.outer(np.geomspace(1, 5e4, num=num), [1, 0, 0, 1.1]).reshape(-1, 2, 2)
+        # covs = np.outer(np.linspace(0.8e4, 1e4, num=num), [1, 0, 0, 1.1]).reshape(-1, 2, 2)
+        frames = [generate_image(c, cov=cov) for c, cov in zip(centroids.T, covs)]
 
         self._framegen = itertools.cycle(frames)
         self._frame = None

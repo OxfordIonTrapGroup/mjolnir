@@ -6,14 +6,14 @@ from numpy.linalg import eig
 # import matplotlib.image as mpimg
 # from mpl_toolkits.mplot3d import Axes3D
 
-from mjolnir.tools.image import gaussian_beam
 
 
 def generate_image(
-        centroid=[200, 200],
-        cov=[[50,0],[0,80]],
+        centroid=[640, 512],
+        cov=100*np.eye(2),
         intensity=220,
-        noise=None,
+        noise="poisson",
+        background=0,
         m=1280,
         n=1024):
 
@@ -24,9 +24,11 @@ def generate_image(
     # scale it
     img *= intensity/np.amax(img)
 
-    if noise is not None:
-        img_noise = np.random.normal(scale=noise, size=(m,n))
-        img += img_noise
+    # add background
+    img += background
+
+    if noise == "poisson":
+        img = np.random.poisson(lam=img)
 
     return np.clip(img.astype(int), 0, 255)
 

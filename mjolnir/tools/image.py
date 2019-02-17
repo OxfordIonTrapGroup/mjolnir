@@ -188,7 +188,7 @@ def auto_crop(img, pxmap=None, dwnsmp_size=None):
     :param img: image to crop
     :param pxmap: optional pixel map to be cropped. Otherwise assume integer
         numbers indexed from zero.
-    :param dwnsmp_size: optional downsampling choice, gives the approximate
+    :param dwnsmp_size: optional downsampling choice, gives the maximum
         size of the downsampled image. Use None for no downsampling
     :returns: img, pxmap; cropped (and potentially downsampled) image, and
         the corresponding pixel map

@@ -88,7 +88,9 @@ def downsample(img, dwnsmp, pxmap=None):
         binned pixel centres
     """
     if np.any(np.array(img.shape) % dwnsmp):
-        raise ValueError("Downsampling factor must divide image dimensions!")
+        raise ValueError(
+            "Downsampling factor {} must divide image dimensions {}"
+            .format(dwnsmp, img.shape))
 
     sh = (img.shape[0] // dwnsmp, dwnsmp, img.shape[1] // dwnsmp, dwnsmp)
     binned_img = img.reshape(sh).mean(-1).mean(1)
@@ -102,126 +104,161 @@ def downsample(img, dwnsmp, pxmap=None):
     return binned_img, binned_pxmap
 
 
-def crop(img, centre, region, pxmap=None, dwnsmp=None):
+def crop(img, lims):
+    """Crop an image or pixel map acoording to the limits given
+
+    :param img: image or pixel map. Cropping occurs on the last two
+        axes, so a pixel map with 3 axes can be supplied
+    :param lims: 2x2 array of the limits to crop to, as [[lower], [upper]]
+
+    :returns: cropped array
+    """
+    x, y = map(slice, *lims)
+    return img[..., x, y]
+
+
+def centred_crop(img, centre, region, pxmap=None):
     """Crop an image given centroid and region, returning the cropped image
     and the pixel map giving the coordinates of each pixel.
 
-    All parameters (apart from image values) should be given as integers, and
-    pixel map (if given) should be in increasing order.
-
     :param img: image to crop, as 2D numpy array
-    :param centre: coordinates of centre of cropped region. Will be cast to
-        integer.
-    :param region: size of cropped region. Will be internally truncated to
-        nearest even number.
+    :param centre: preferred coordinates of centre of cropped region. If this
+        would put any of the region over the edges of the image, sets the
+        region to the edge.
+    :param region: size of cropped region in pixels
     :param pxmap: optional pixel coordinate mapping of image, to be cropped
         as well. Otherwise assumes integer pixel numbers indexed from 0 for
         the input image.
-    :param dwnsmp: optional downsampling factor to consider when cropping.
-        Ensure the cropped region is an integer multiple of the
-        downsampling factor.
 
     :returns: img, pxmap: the cropped image, plus its pixel coordinate map
+
+    Note: this is currently messy: centre is given relative to the pixel
+    map (if provided), while region is pixel units only. We should either
+    make it fully compatible with all dimensions relative to the pixel map,
+    or make it pixel units only. The use case of non pixel units only really
+    applies if you have already downsampled the image, so it seems like the
+    thing to do is support pixel units only.
     """
+    region = int(region)
+    if np.any(np.array(img.shape) < region):
+        raise ValueError(
+            "Region {} cannot be larger than image {}"
+            .format(region, img.shape))
+
     if pxmap is None:
         pxmap = np.mgrid[0:img.shape[0], 0:img.shape[1]]
 
     llim = pxmap[:, 0, 0]
-    ulim = pxmap[:, -1, -1]
+    ulim = llim + img.shape
 
     # Do we actually want this check?
     if np.any(centre < llim) or np.any(centre > ulim):
-        raise ValueError("Centre is outside image")
+        raise ValueError(
+            "Centre {} is outside image {}".format(centre, img.shape))
 
-    if dwnsmp is None:
-        hr = region // 2
-    elif dwnsmp % 2:
-        hr = region // (2 * dwnsmp) * dwnsmp
-    else:
-        hr = region // dwnsmp * dwnsmp / 2
+    # Get the first pixel where the pixel map value is equal to or greater
+    # than the centre value
+    pxc = np.argwhere(
+        np.all(np.moveaxis(pxmap, 0, -1) >= centre, axis=-1))[0].astype(int)
 
-    # Work in pixel coordinates, not using mapping
-    pxc = (centre - llim).astype(int)
+    lims = np.array([pxc - (region // 2), pxc + (region // 2) + (region % 2)])
+    lims = lims.astype(int)
+    lims = np.clip(lims, llim, ulim)
 
-    lims = np.array([pxc - hr, pxc + hr]).astype(int)
-    lims = np.clip(lims, [0, 0], np.array(img.shape) - 1)
-
+    # I think there may be a better algorithm for doing this; haven't thought
+    # of it yet though
     diffs = np.diff(lims, axis=0)[0]
-    if not np.all(diffs):
-        raise ValueError("Crop parameters caused zero size cropped image")
+    for j, diff in enumerate(diffs):
+        if diff != region:
+            if lims[0,j] == llim[j]:
+                lims[1,j] = lims[0,j] + region
+            elif lims[1,j] == ulim[j]:
+                lims[0,j] = lims[1,j] - region
 
-    if dwnsmp:
-        for j, diff in enumerate(diffs):
-            if diff % dwnsmp:
-                # already forced region to be divisible by downsampling
-                # factor, so we must have run into the clip at the edges
-                diff = diff // dwnsmp * dwnsmp
-                if lims[0,j] == 0:
-                    lims[1,j] = diff
-                elif lims[1,j] == img.shape[1] - 1:
-                    lims[0,j] = lims[1,j] - diff
-
-    xmin, xmax, ymin, ymax = lims.T.flatten()
-
-    cropped_img = img[xmin:xmax, ymin:ymax]
-    cropped_pxmap = pxmap[:, xmin:xmax, ymin:ymax]
+    cropped_img = crop(img, lims)
+    cropped_pxmap = crop(pxmap, lims)
 
     return cropped_img, cropped_pxmap
 
 
-def auto_crop(img, pxmap=None, dwnsmp=None, method="mean"):
-    """Auto crop an image to provide the best possible fit.
+def auto_crop(img, pxmap=None, dwnsmp_size=None):
+    """Auto crop an image for good fitting, with optional downsample for faster
+    fitting.
 
     :param img: image to crop
-    :param pxmap: optional pixel map to be cropped and downsampled.
-        Otherwise assume integer numbers indexed from zero.
-    :param dwnsmp: optional downsampling choice, None for no downsampling
-        or "auto" for best fit speed (will choose a downsampling factor that
-        produces a 20x20 image or smaller)
-    :param method: choose from "mean" or "compare"
-    :returns: img, pxmap, dwnsmp; cropped image, pixel map for the cropped
-        image, and a downsampling factor to use with it.
+    :param pxmap: optional pixel map to be cropped. Otherwise assume integer
+        numbers indexed from zero.
+    :param dwnsmp_size: optional downsampling choice, gives the approximate
+        size of the downsampled image. Use None for no downsampling
+    :returns: img, pxmap; cropped (and potentially downsampled) image, and
+        the corresponding pixel map
     """
     max_ = np.amax(img)
     min_ = np.amin(img)
     contrast = (max_ - min_)
     centre = np.unravel_index(np.argmax(img), img.shape)
+    fill_target = 0.3
 
-    if method == "compare":
-        # Compares each pixel against the dark value
-        f = lambda img: np.mean(img > int(min_ + np.exp(-2) * contrast))
-    elif method == "mean":
-        # Tries to get to a target mean pixel value
-        f = lambda img: 0.5 * np.mean(img) / (min_ + contrast/4)
+    def fill_factor(im):
+        """Calculate what fraction of pixels are above dark value"""
+        return np.mean(im > min_ + np.exp(-2) * contrast)
 
-    # Function for finding the next region size
-    r = lambda region, fill: region * np.sqrt(fill / 0.5)
+    def downsampling_factor(region):
+        """Find downsampling factor for approximate region size given"""
+        if dwnsmp_size is not None:
+            dwnsmp = int(region // dwnsmp_size)
+        else:
+            dwnsmp = 1
+        return dwnsmp if dwnsmp else 1
 
-    region = img.shape[0]
-    crp = img.astype(int)
-    px = pxmap
-    fill = f(crp)
-    for i in range(10):
-        # Should converge extremely rapidly
-        if 0.3 < fill < 0.7:
+    def new_region(old, fill):
+        """Find next crop region size, and downsampling factor if needed"""
+        new = old * np.sqrt(fill / fill_target)
+        new = np.clip(new, 0, np.amin(img.shape))
+
+        dwnsmp = downsampling_factor(new)
+
+        if new // dwnsmp == old // dwnsmp:
+            new = new // dwnsmp * dwnsmp + np.sign(new - old) * dwnsmp
+        else:
+            new = new // dwnsmp * dwnsmp
+        return new, dwnsmp
+
+    # Hack to get the biggest possible image and downsampling factor
+    # (finding the right downsampling for a totally uncropped image
+    # is slightly more difficult)
+    region, dwnsmp = new_region(np.amin(img.shape), fill_target)
+    best = None
+    for i in range(5):
+        try:
+            # This is guaranteed *not* to fail on the first iteration,
+            # since our first crop is always the largest feasible crop,
+            # so will be neither larger than the image or zero sized
+            crp, px = centred_crop(img, centre, region, pxmap=pxmap)
+        except ValueError:
+            # Either the crop was larger than the image or zero sized,
+            # so reset dwnsmp to last successful
+            dwnsmp = last
             break
-        region = r(region, fill)
-        if dwnsmp is not None:
-            dwnsmp = region // 20
-            dwnsmp = int(dwnsmp)
-            if dwnsmp == 0:
-                dwnsmp = 1
-        crp, px = crop(img, centre, region, pxmap=pxmap, dwnsmp=dwnsmp)
-        fill = f(crp)
+        fill = fill_factor(crp)
 
+        distance = np.abs(fill - fill_target)
+        if distance < 0.05:
+            break
+        elif best is None or distance < best:
+            best = distance
+            best_effort = (crp, px, dwnsmp)
+        last = dwnsmp
+        region, dwnsmp = new_region(region, fill)
     else:
-        raise RuntimeError("Autocrop max number of iterations")
+        # Didn't break out of the for loop, so use best effort
+        crp, px, dwnsmp = best_effort
 
     if dwnsmp is not None:
         # downsample after choosing size
-        downsample(crp, dwnsmp, pxmap=px)
+        crp, px = downsample(crp, dwnsmp, pxmap=px)
 
-    return crp, px, dwnsmp
+    return crp, px
 
 
 def parameter_initialiser(x, y, centroid_only=False):

@@ -1,15 +1,33 @@
+# Overall TODO:
+#  - rename variables to make it clear what is the image, and what is the
+#    pixel mapping
 import numpy as np
 from scipy.optimize import curve_fit
 
 
+"""
+Note about 2x2 determinant/inverse calculation: obviously there are library
+methods to do this, however, with the 2x2 case the algorithm is trivial,
+rather than relying on a (complex) generic NxN matrix algorithm.
+"""
 def det2x2(m):
-    """2x2 determinant"""
+    """Calculate 2x2 determinant of a matrix
+
+    :param m: 2x2 numpy array to calculate determinant of
+
+    :returns: det, determinant
+    """
     assert m.shape == (2,2)
     return m[0,0]*m[1,1] - m[0,1]*m[1,0]
 
 
 def inv2x2(m):
-    """2x2 matrix inverse"""
+    """Calculate 2x2 matrix inverse of a matrix
+
+    :param m: 2x2 numpy array to invert
+
+    :returns: inv, the inverse of m sunch that inv@m = eye
+    """
     assert m.shape == (2,2)
     det = det2x2(m)
     assert det != 0
@@ -51,22 +69,9 @@ def unpack(p):
 
 
 def check_shape(x, y):
-    # print(x.shape)
-    # print(y.shape)
     _, m, n = x.shape
     assert _ == 2
     assert y.shape == (m, n)
-
-
-def check_fit_plausible(y):
-    if np.amin(y) * 10 > np.amax(y):
-        raise RuntimeError("Insufficient contrast")
-    return True
-
-
-def find_maximum(y):
-    """Find maximum pixel location"""
-    return {'x0': np.unravel_index(np.argmax(y), y.shape)}
 
 
 def downsample(img, dwnsmp, pxmap=None):
@@ -302,7 +307,12 @@ class GaussianBeam:
             integer numbers indexed from 0
 
         :returns: p, dictionary of fitted and derived parameters
+
+        TODO: Return errors.
         """
+        if pxmap is None:
+            pxmap = np.mgrid[0:img.shape[0], 0:img.shape[1]]
+
         p0 = unpack(parameter_initialiser(pxmap, img))
 
         check_shape(pxmap, img)
@@ -324,11 +334,11 @@ class GaussianBeam:
         cov = p['cov']
 
         params = {}
-        params['x_radius'], params["y_radius"] = cls.variance_to_e_squared(
+        params['x_radius'], params['y_radius'] = cls.variance_to_e_squared(
             np.diag(cov))
 
         # Find eigenvectors/eigenvalues for general ellipse
-        w, v = np.linalg.eig(cov)
+        w, v = np.linalg.eigh(cov)
         maj = np.argmax(w)
         min_ = maj - 1     # trick: we can always index with -1 or 0
         params['semimaj_angle'] = np.rad2deg(np.arctan2(v[1, maj], v[0, maj]))
@@ -350,4 +360,19 @@ class GaussianBeam:
         """Convert variance to 1/e^2 radius"""
         return 2*np.sqrt(var)
 
-gaussian_beam = GaussianBeam()
+    @classmethod
+    def compute_derived_errors(cls, p, p_err):
+        """Not yet implemented: compute the errors of the derived properties.
+
+        Computing the errors on eigenvectors/eigenvalues calculated from an
+        uncertain matrix is non-trivial. We could use bootstrapping, i.e.
+        generate many matrices according to the distributions of each element,
+        calculate the eigenvectors/eigenvalues for each matrix, and then look
+        at the distribution of what was returned. Clearly this is
+        computationally expensive, so don't do this by default.
+
+        There is also a module on pypi named 'uncertainties' that claims to
+        do this for many functions; it's not clear if this is still
+        actively developed/maintained.
+        """
+        raise NotImplementedError

@@ -17,8 +17,6 @@ class Worker(QtCore.QObject):
 
         self._cps = None
         self._last_update = QtCore.QTime.currentTime()
-        self._region = 20
-        self._dwnsmp = None
         self.imageq = imageq
         self.updateq = updateq
 
@@ -43,8 +41,6 @@ class Worker(QtCore.QObject):
 
         m, n = im.shape
         pxmap = np.mgrid[0:m,0:n]
-        region = self._region
-        dwnsmp = self._dwnsmp
 
         if (np.amax(im) - np.amin(im)) < 100:
             update = {'im': im, 'failure': "Contrast too low"}
@@ -133,20 +129,3 @@ class Worker(QtCore.QObject):
         update.update(p)
 
         finish(update)
-
-    @QtCore.pyqtSlot('double')
-    def set_region(self, value):
-        value = int(value)
-
-        if value <= 20:
-            self._region = 20
-            self._dwnsmp = None
-        elif value <= 50:
-            self._region = value
-            self._dwnsmp = None
-        else:
-            self._dwnsmp = value // 40
-            self._region = self._dwnsmp * 40
-
-        logger.info("Set region: {}".format(self._region))
-        logger.info("Set downsampling: {}".format(self._dwnsmp))

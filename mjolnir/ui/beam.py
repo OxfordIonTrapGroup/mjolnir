@@ -96,14 +96,14 @@ class BeamDisplay(QtWidgets.QMainWindow):
             self.y_fit.setData(up['y_fit'], up['y'])
 
             # Sub-pixel position works with QPointF
-            centroid = QtCore.QPointF(*up['x0'])
+            centroid = QtCore.QPointF(*up['pxc'])
             self.fit_v_line.setPos(centroid)
             self.fit_h_line.setPos(centroid)
 
             # cache the centroid in case we need to set a mark
             self._centroid = centroid
 
-            self.history.append(up['x0'])
+            self.history.append(up['pxc'])
             self.replot_history()
             self._history_timer.start()
 
@@ -121,8 +121,8 @@ class BeamDisplay(QtWidgets.QMainWindow):
             self.avg_radius.setText(self.px_string(up['avg_radius']))
             self.x_radius.setText(self.px_string(up['x_radius']))
             self.y_radius.setText(self.px_string(up['y_radius']))
-            self.x_centroid.setText(self.px_string(up['x0'][0]))
-            self.y_centroid.setText(self.px_string(up['x0'][1]))
+            self.x_centroid.setText(self.px_string(up['pxc'][0]))
+            self.y_centroid.setText(self.px_string(up['pxc'][1]))
             self.ellipticity.setText("{:.3f}".format(up['e']))
         except KeyError:
             return

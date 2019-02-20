@@ -5,6 +5,15 @@ import numpy as np
 from scipy.optimize import curve_fit
 
 
+__all__ = [
+    "GaussianBeam",
+    "downsample",
+    "crop",
+    "centred_crop",
+    "auto_crop",
+]
+
+
 """
 Note about 2x2 determinant/inverse calculation: obviously there are library
 methods to do this, however, with the 2x2 case the algorithm is trivial,
@@ -46,7 +55,7 @@ def inv2x2(m):
 def pack(args):
     """packs parameters given as scalars into parameter dict"""
     p = {}
-    p['x0'] = np.array(args[0:2])
+    p['pxc'] = np.array(args[0:2])
     p['cov'] = np.empty((2,2))
     p['cov'][0,:] = args[2:4]
     p['cov'][1,:] = args[3:5]
@@ -59,7 +68,7 @@ def pack(args):
 def unpack(p):
     """unpack parameter dict into individual parameters"""
     args = np.ones(7)
-    args[0:2] = p['x0']
+    args[0:2] = p['pxc']
     args[2:4] = p['cov'][0,:]
     args[4] = p['cov'][1,1]
     args[5] = p['scale']
@@ -68,10 +77,10 @@ def unpack(p):
     return args
 
 
-def check_shape(x, y):
-    _, m, n = x.shape
+def check_shape(pxmap, img):
+    _, m, n = pxmap.shape
     assert _ == 2
-    assert y.shape == (m, n)
+    assert img.shape == (m, n)
 
 
 def downsample(img, dwnsmp, pxmap=None):
@@ -199,9 +208,9 @@ def auto_crop(img, pxmap=None, dwnsmp_size=None):
     centre = np.unravel_index(np.argmax(img), img.shape)
     fill_target = 0.3
 
-    def fill_factor(im):
+    def fill_factor(img):
         """Calculate what fraction of pixels are above dark value"""
-        return np.mean(im > min_ + np.exp(-2) * contrast)
+        return np.mean(img > min_ + np.exp(-2) * contrast)
 
     def downsampling_factor(region):
         """Find downsampling factor for approximate region size given"""
@@ -261,57 +270,54 @@ def auto_crop(img, pxmap=None, dwnsmp_size=None):
     return crp, px
 
 
-def parameter_initialiser(x, y, centroid_only=False):
+def parameter_initialiser(pxmap, img):
     """naively calculate centroid and covariance of data"""
-    # x is like np.mgrid[0:m,0:n]
-    check_shape(x, y)
+    # pxmap is like np.mgrid[0:m,0:n]
+    check_shape(pxmap, img)
 
-    if centroid_only:
-        # estimate centroid with minimal calculation
-        x0 = np.einsum("ijk,jk->i", x, y)/np.sum(y)
-        return {'x0': x0}
+    offset = np.amin(img)
+    scale = np.sum(img - offset)
+    prob = (img - offset)/scale
 
-    y0 = np.amin(y)
-    a = np.sum(y - y0)
-    prob = (y - y0)/a
+    # estimated centre of beam with a weighted mean of each pixel position
+    # with its relative intensity
+    pxc = np.einsum("ijk,jk->i", pxmap, prob)
 
-    x0 = np.einsum("ijk,jk->i", x, prob)
-
-    # reshape x to find distances from mean position
-    # equivalent to np.moveaxis(x, 0, -1)
-    x = np.einsum("i...->...i", x)
-    d = x - x0
+    # reshape x to find distances from estimated centre
+    # equivalent to np.moveaxis(pxmap, 0, -1)
+    pxmap = np.einsum("i...->...i", pxmap)
+    d = pxmap - pxc
 
     # 1.2x speedup possible with ['einsum_path', (0, 1), (0, 1)]
     cov = np.einsum("ijk,ij,ijl->kl", d, prob, d)
 
     p = {}
-    p['x0'] = x0
+    p['pxc'] = pxc
     p['cov'] = cov
-    p['scale'] = a
-    p['offset'] = y0
+    p['scale'] = scale
+    p['offset'] = offset
 
     return p
 
 
-def _fitting_function(x, p):
-    x = np.einsum("i...->...i", x)
-    d = x - p.get('x0', np.zeros(2))
+def _fitting_function(pxmap, p):
+    pxmap = np.einsum("i...->...i", pxmap)
+    d = pxmap - p['pxc']
 
-    det = det2x2(p.get('cov', np.eye(2)))
-    inv = inv2x2(p.get('cov', np.eye(2)))
+    det = det2x2(p['cov'])
+    inv = inv2x2(p['cov'])
 
     pref = (1/(2*np.pi*np.sqrt(np.abs(det))))
     expo = -0.5*np.einsum("...k,kl,...l->...", d, inv, d)
 
-    y = p.get('scale', 1.)*pref*np.exp(expo) + p.get('offset', 0.)
+    y = p['scale']*pref*np.exp(expo) + p['offset']
 
     return y
 
 
 # annoying function signature for curve_fit
-def fitting_function(x, x0_0=0, x0_1=0, c00=1, c01=0, c11=1, a=1, y0=0):
-    p = pack([x0_0, x0_1, c00, c01, c11, a, y0])
+def fitting_function(x, pxc_0=0, pxc_1=0, cov_00=1, cov_01=0, cov_11=1, scale=1, offset=0):
+    p = pack([pxc_0, pxc_1, cov_00, cov_01, cov_11, scale, offset])
     return _fitting_function(x, p)
 
 
@@ -322,10 +328,10 @@ class GaussianBeam:
 
         :param xdata: array of pixel map points to calculate value at
         :param p: parameter dictionary
-                  - x0: centroid, default (0,0)
-                  - cov: covariance matrix, default identity
-                  - scale: scale factor, default 1
-                  - offset: z offset, default 0
+                  - pxc: centroid
+                  - cov: covariance matrix
+                  - scale: intensity of 'beam'
+                  - offset: image background
         """
         return _fitting_function(xdata, p)
 

@@ -73,13 +73,13 @@ class Worker(QtCore.QObject):
             finish(update)
             return
 
-        if np.any(p['x0'] < pxmap[:,0,0]) or np.any(p['x0'] > pxmap[:,-1,-1]):
+        if np.any(p['pxc'] < pxmap[:,0,0]) or np.any(p['pxc'] > pxmap[:,-1,-1]):
             update = {'im': im, 'failure': "Centre outside image"}
             finish(update)
             return
 
         # Need to correct centre for downsampling
-        zoom_centre = (p['x0'] - px_crop[:,0,0]) / dwnsmp + [0.5, 0.5]
+        zoom_centre = (p['pxc'] - px_crop[:,0,0]) / dwnsmp + [0.5, 0.5]
         zoom_centre = QtCore.QPointF(*zoom_centre)
 
         im_fit = GaussianBeam.f(px_crop, p)
@@ -91,22 +91,22 @@ class Worker(QtCore.QObject):
         # our residual would otherwise look much worse than it is
         im_res = np.trunc(im_crop - im_fit)/im_err
 
-        px_x0 = np.around(p['x0']).astype(int)
+        pxc = np.around(p['pxc']).astype(int)
 
         x = pxmap[0,:,0]
-        x_slice = im[:,px_x0[1]]
-        x_fit = GaussianBeam.f(pxmap[:,:,px_x0[1]],p)
+        x_slice = im[:,pxc[1]]
+        x_fit = GaussianBeam.f(pxmap[:,:,pxc[1]],p)
 
         y = pxmap[1,0,:]
-        y_slice = im[px_x0[0],:]
-        y_fit = GaussianBeam.f(pxmap[:,px_x0[0],:],p)
+        y_slice = im[pxc[0],:]
+        y_fit = GaussianBeam.f(pxmap[:,pxc[0],:],p)
 
         iso_level = np.amax(im_fit) / np.exp(2)
 
         # Correct for the fact that pixels are plotted with their origin at
         # the top left corner
         # Note that this comes after all fits have been calculated!
-        p['x0'] += [0.5, 0.5]
+        p['pxc'] += [0.5, 0.5]
 
         # construct our update dictionary
         update = {

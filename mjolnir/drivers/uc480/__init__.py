@@ -26,10 +26,12 @@ import ctypes
 import platform
 _linux = (platform.system() == "Linux")
 import numpy as np
+import logging
 
 from .uc480_h import *
 
-VERBOSE = False
+
+logger = logging.getLogger(__name__)
 
 
 # ##########################################################################################################
@@ -104,18 +106,17 @@ class uc480:
         :param mixed args: Arguments to pass to the function.
         :raises uc480Error: if function could not be properly executed.
         """
-        if VERBOSE:
-            print(("calling %s.." % function))
+        logger.debug(("calling %s.." % function))
         func = getattr(self._lib, function, None)
         if func is not None:
             if _linux and function in ["is_RenderBitmap", "is_GetDC", "is_ReleaseDC", "is_UpdateDisplay",
-                                       "is_SetDisplayMode", "is_SetDisplayPos", "is_SetHwnd", "is_SetUpdateMode",
+                                       "is_SetDisplayPos", "is_SetHwnd", "is_SetUpdateMode",
                                        "is_GetColorDepth", "is_SetOptimalCameraTiming", "is_DirectRenderer"]:
-                print(("WARNING: Function %s is not supported by this library version.." % function))
+                logger.warning(("WARNING: Function %s is not supported by this library version.." % function))
             else:
                 assrt(func(*args), function)
         else:
-            print(("WARNING: Function %s does not exist in this library version.." % function))
+            logger.warning(("WARNING: Function %s does not exist in this library version.." % function))
 
 
     # use this version if the called function actually returns a value
@@ -127,18 +128,17 @@ class uc480:
         :returns: Result of function call.
         :raises uc480Error: if function could not be properly executed.
         """
-        if VERBOSE:
-            print(("querying %s.." % function))
+        logger.debug(("querying %s.." % function))
         func = getattr(self._lib, function, None)
         if func is not None:
             if _linux and function in ["is_RenderBitmap", "is_GetDC", "is_ReleaseDC", "is_UpdateDisplay",
-                                       "is_SetDisplayMode", "is_SetDisplayPos", "is_SetHwnd", "is_SetUpdateMode",
+                                       "is_SetDisplayPos", "is_SetHwnd", "is_SetUpdateMode",
                                        "is_GetColorDepth", "is_SetOptimalCameraTiming", "is_DirectRenderer"]:
-                print(("WARNING: Function %s is not supported by this library version.." % function))
+                logger.warning(("WARNING: Function %s is not supported by this library version.." % function))
             else:
                 return func(*args)
         else:
-            print(("WARNING: Function %s does not exist in this library version.." % function))
+            logger.warning(("WARNING: Function %s does not exist in this library version.." % function))
             return
 
 
@@ -148,22 +148,18 @@ class uc480:
 
             - **uc480.dll** on Win32
             - **uc480_64.dll** on Win64
-            - **libueye_api.so.3.82** on Linux32
-            - **libueye_api64.so.3.82** on Linux64.
+            - **libueye_api.so** on Linux (check this, but appeared to be for v4.91)
 
         :param str library: If not None, try to connect to the given library name.
         """
-        print("Load uc480 library..")
+        logger.debug("Load uc480 library..")
 
         if library is None:
-            if (platform.architecture()[0] == "32bit"):
-                if _linux:
-                    self._lib = ctypes.cdll.LoadLibrary("libueye_api.so.3.82")
-                else:
-                    self._lib = ctypes.cdll.LoadLibrary("uc480.dll")
+            if _linux:
+                self._lib = ctypes.cdll.LoadLibrary("libueye_api.so")
             else:
-                if _linux:
-                    self._lib = ctypes.cdll.LoadLibrary("libueye_api64.so.3.82")
+                if (platform.architecture()[0] == "32bit"):
+                    self._lib = ctypes.cdll.LoadLibrary("uc480.dll")
                 else:
                     self._lib = ctypes.cdll.LoadLibrary("uc480_64.dll")
         else:
@@ -176,7 +172,7 @@ class uc480:
         minor = version & 0xFF
         version = version >> 8
         major = version & 0xFF
-        print(("API version %d.%d.%d" % (major, minor, build)))
+        logger.info(("API version %d.%d.%d" % (major, minor, build)))
 
 
     # query number of connected cameras and retrieve a list with CameraIDs
@@ -186,14 +182,14 @@ class uc480:
         nCams = ctypes.c_int()
         self.call("is_GetNumberOfCameras", ptr(nCams))
         nCams = nCams.value
-        print(("Found %d camera(s)" % nCams))
+        logger.info(("Found %d camera(s)" % nCams))
         if nCams > 0:
             self._cam_list = create_camera_list(nCams)
             self.call("is_GetCameraList", ptr(self._cam_list))
 
             for i in range(self._cam_list.dwCount):
                 camera = self._cam_list.uci[i]
-                print(("Camera #%d: SerNo = %s, CameraID = %d, DeviceID = %d" % (i, camera.SerNo, camera.dwCameraID, camera.dwDeviceID)))
+                logger.info(("Camera #%d: SerNo = %s, CameraID = %d, DeviceID = %d" % (i, camera.SerNo, camera.dwCameraID, camera.dwDeviceID)))
 
 
     # connect to camera with given cameraID; if cameraID = 0, connect to first available camera
@@ -223,11 +219,11 @@ class uc480:
         else:
             self.call("is_SetColorMode", self._camID, IS_CM_MONO8)
             self._bitsperpixel = 8
-        print(("Sensor: %d x %d pixels, RGB = %d, %d bits/px" % (self._swidth, self._sheight, self._rgb, self._bitsperpixel)))
+        logger.info(("Sensor: %d x %d pixels, RGB = %d, %d bits/px" % (self._swidth, self._sheight, self._rgb, self._bitsperpixel)))
 
         dblRange = (ctypes.c_double * 3)()
         self.call("is_Exposure", self._camID, IS_EXPOSURE_CMD_GET_EXPOSURE_RANGE, ptr(dblRange), ctypes.sizeof(dblRange))
-        print(("Valid exposure times: %fms to %fms in steps of %fms" % (dblRange[0], dblRange[1], dblRange[2])))
+        logger.info(("Valid exposure times: %fms to %fms in steps of %fms" % (dblRange[0], dblRange[1], dblRange[2])))
         self.expmin, self.expmax, self.expinc = dblRange
 
         # set default parameters
@@ -370,21 +366,19 @@ class uc480:
         :param int N: Number of frames to acquire (> 1).
         :returns: Averaged image.
         """
-        if VERBOSE:
-            print(("acquire %d frames" % N))
+        logger.debug(("acquire %d frames" % N))
         if not self._image:
-            if VERBOSE:
-                print("  create buffer..")
+            logger.debug("  create buffer..")
             self.create_buffer()
 
         data = None
         for i in range(int(N)):
-            if VERBOSE:
-                print("  wait for data..")
-            while self.query("is_FreezeVideo", self._camID, IS_WAIT) != IS_SUCCESS:
+            logger.debug("  wait for data..")
+            ret = self.query("is_FreezeVideo", self._camID, IS_WAIT)
+            while ret != IS_SUCCESS:
+                logger.debug("is_FreezeVideo returned: {}".format(ret))
                 time.sleep(0.1)
-            if VERBOSE:
-                print("  read data..")
+            logger.debug("  read data..")
             if data is None:
                 if native:
                     data = self.get_buffer()

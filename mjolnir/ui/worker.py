@@ -1,8 +1,12 @@
+import logging
 import numpy as np
 from PyQt5 import QtCore
 
-from mjolnir.tools.image import GaussianBeam
+from mjolnir.tools.image import GaussianBeam, auto_crop
 from mjolnir.tools import tools
+
+
+logger = logging.getLogger(__name__)
 
 
 class Worker(QtCore.QObject):
@@ -13,7 +17,6 @@ class Worker(QtCore.QObject):
 
         self._cps = None
         self._last_update = QtCore.QTime.currentTime()
-        self._region = 50
         self.imageq = imageq
         self.updateq = updateq
 
@@ -38,7 +41,6 @@ class Worker(QtCore.QObject):
 
         m, n = im.shape
         pxmap = np.mgrid[0:m,0:n]
-        region = self._region
 
         if (np.amax(im) - np.amin(im)) < 100:
             update = {'im': im, 'failure': "Contrast too low"}
@@ -46,15 +48,41 @@ class Worker(QtCore.QObject):
             return
 
         try:
-            p = GaussianBeam.lsq_cropped(pxmap, im, region)
+            im_crop, px_crop = auto_crop(im, dwnsmp_size=20)
+            dwnsmp = px_crop[0,1,0] - px_crop[0,0,0]
         except Exception as e:
-            # We really don't want a fit failure to kill the GUI
+            logger.exception("auto_crop failed")
             update = {'im': im, 'failure': str(e)}
             finish(update)
             return
 
-        pxcrop, im_crop = GaussianBeam.crop(pxmap, im, p['x0'], region)
-        im_fit = GaussianBeam.f(pxcrop, p)
+        try:
+            p = GaussianBeam.fit(im_crop, pxmap=px_crop)
+        except RuntimeError:
+            update = {
+                'im': im,
+                'im_crop': im_crop,
+                'failure': "Least squares fit failed"
+            }
+            finish(update)
+            return
+        except Exception as e:
+            # We really don't want a fit failure to kill the GUI
+            update = {'im': im, 'failure': str(e)}
+            logger.exception("Fit failure")
+            finish(update)
+            return
+
+        if np.any(p['x0'] < pxmap[:,0,0]) or np.any(p['x0'] > pxmap[:,-1,-1]):
+            update = {'im': im, 'failure': "Centre outside image"}
+            finish(update)
+            return
+
+        # Need to correct centre for downsampling
+        zoom_centre = (p['x0'] - px_crop[:,0,0]) / dwnsmp + [0.5, 0.5]
+        zoom_centre = QtCore.QPointF(*zoom_centre)
+
+        im_fit = GaussianBeam.f(px_crop, p)
 
         # residuals normalised to the pixel value
         im_err = np.sqrt(im_crop)
@@ -63,10 +91,7 @@ class Worker(QtCore.QObject):
         # our residual would otherwise look much worse than it is
         im_res = np.trunc(im_crop - im_fit)/im_err
 
-        zoom_origin = pxcrop[:,0,0]
-        # just in case max pixel is not exactly centred
-        px_x0 = np.unravel_index(np.argmax(im_fit), im_fit.shape)
-        px_x0 += zoom_origin
+        px_x0 = np.around(p['x0']).astype(int)
 
         x = pxmap[0,:,0]
         x_slice = im[:,px_x0[1]]
@@ -82,7 +107,6 @@ class Worker(QtCore.QObject):
         # the top left corner
         # Note that this comes after all fits have been calculated!
         p['x0'] += [0.5, 0.5]
-        zoom_centre = QtCore.QPointF(*(p['x0']-zoom_origin))
 
         # construct our update dictionary
         update = {
@@ -96,7 +120,7 @@ class Worker(QtCore.QObject):
             'y': y,
             'y_slice': y_slice,
             'y_fit': y_fit,
-            'zoom_origin': zoom_origin,
+            # 'zoom_origin': zoom_origin,
             'zoom_centre': zoom_centre,
             'iso_level': iso_level
         }
@@ -105,8 +129,3 @@ class Worker(QtCore.QObject):
         update.update(p)
 
         finish(update)
-
-
-    @QtCore.pyqtSlot(int)
-    def set_region(self, value):
-        self._region = value

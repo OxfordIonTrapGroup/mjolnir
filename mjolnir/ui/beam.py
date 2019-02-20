@@ -61,6 +61,7 @@ class BeamDisplay(QtWidgets.QMainWindow):
             self._last_update, self._fps = tools.update_rate(
                 self._last_update, self._fps)
             self.fps.setText("{:.1f} fps".format(self._fps))
+            self.fps.show()
 
         try:
             up = self.updateq.popleft()
@@ -71,50 +72,60 @@ class BeamDisplay(QtWidgets.QMainWindow):
         options = {'autoRange': False, 'autoLevels': False}
         self.image.setImage(up['im'], **options)
 
+        try:
+            self.zoom.setImage(up['im_crop'], **options)
+        except KeyError:
+            pass
+
         failure = up.get('failure', None)
         if failure:
-            self.error_message.setText(failure)
+            self.message.setText(failure)
+            self.message.show()
             finish()
             return
+        else:
+            self.message.hide()
 
-        self.zoom.setImage(up['im_crop'], **options)
-        self.residuals.setImage(up['im_res'], lut=self.residual_LUT, **options)
+        try:
+            self.residuals.setImage(up['im_res'], lut=self.residual_LUT, **options)
 
-        self.x_slice.setData(up['x'], up['x_slice'])
-        self.x_fit.setData(up['x'], up['x_fit'])
+            self.x_slice.setData(up['x'], up['x_slice'])
+            self.x_fit.setData(up['x'], up['x_fit'])
 
-        self.y_slice.setData(up['y_slice'], up['y'])
-        self.y_fit.setData(up['y_fit'], up['y'])
+            self.y_slice.setData(up['y_slice'], up['y'])
+            self.y_fit.setData(up['y_fit'], up['y'])
 
-        # Sub-pixel position works with QPointF
-        centroid = QtCore.QPointF(*up['x0'])
-        self.fit_v_line.setPos(centroid)
-        self.fit_h_line.setPos(centroid)
+            # Sub-pixel position works with QPointF
+            centroid = QtCore.QPointF(*up['x0'])
+            self.fit_v_line.setPos(centroid)
+            self.fit_h_line.setPos(centroid)
 
-        # cache the centroid in case we need to set a mark
-        self._centroid = centroid
+            # cache the centroid in case we need to set a mark
+            self._centroid = centroid
 
-        self.history.append(up['x0'])
-        self.replot_history()
-        self._history_timer.start()
+            self.history.append(up['x0'])
+            self.replot_history()
+            self._history_timer.start()
 
-        # 'zoom_centre' is a QPointF
-        self.fit_maj_line.setPos(up['zoom_centre'])
-        self.fit_min_line.setPos(up['zoom_centre'])
-        self.fit_maj_line.setAngle(up['semimaj_angle'])
-        self.fit_min_line.setAngle(up['semimin_angle'])
+            # 'zoom_centre' is a QPointF
+            self.fit_maj_line.setPos(up['zoom_centre'])
+            self.fit_min_line.setPos(up['zoom_centre'])
+            self.fit_maj_line.setAngle(up['semimaj_angle'])
+            self.fit_min_line.setAngle(up['semimin_angle'])
 
-        self.isocurve.setLevel(up['iso_level'])
-        self.isocurve.setData(up['im_fit'])
+            self.isocurve.setLevel(up['iso_level'])
+            self.isocurve.setData(up['im_fit'])
 
-        self.maj_radius.setText(self.px_string(up['semimaj']))
-        self.min_radius.setText(self.px_string(up['semimin']))
-        self.avg_radius.setText(self.px_string(up['avg_radius']))
-        self.x_radius.setText(self.px_string(up['x_radius']))
-        self.y_radius.setText(self.px_string(up['y_radius']))
-        self.x_centroid.setText(self.px_string(up['x0'][0]))
-        self.y_centroid.setText(self.px_string(up['x0'][1]))
-        self.ellipticity.setText("{:.3f}".format(up['e']))
+            self.maj_radius.setText(self.px_string(up['semimaj']))
+            self.min_radius.setText(self.px_string(up['semimin']))
+            self.avg_radius.setText(self.px_string(up['avg_radius']))
+            self.x_radius.setText(self.px_string(up['x_radius']))
+            self.y_radius.setText(self.px_string(up['y_radius']))
+            self.x_centroid.setText(self.px_string(up['x0'][0]))
+            self.y_centroid.setText(self.px_string(up['x0'][1]))
+            self.ellipticity.setText("{:.3f}".format(up['e']))
+        except KeyError:
+            return
 
         if self._mark is not None:
             self.update_deltas()
@@ -307,8 +318,12 @@ class BeamDisplay(QtWidgets.QMainWindow):
     def connect_actions(self):
         """Connect triggers to their actions"""
         self.single_acq.clicked.connect(lambda: self.cam.single_acquisition())
+        self.single_acq.clicked.connect(lambda: self.status.setText("Single"))
         self.start_acq.clicked.connect(lambda: self.cam.start_acquisition())
+        self.start_acq.clicked.connect(lambda: self.status.setText("Started"))
         self.stop_acq.clicked.connect(lambda: self.cam.stop_acquisition())
+        self.stop_acq.clicked.connect(lambda: self.status.setText("Stopped"))
+        self.stop_acq.clicked.connect(lambda: self.fps.hide())
         # connect after finding params so we don't send accidental update
         self.exposure.valueChanged.connect(self.exposure_cb)
         self.mark.clicked.connect(self.mark_cb)
@@ -358,7 +373,8 @@ class BeamDisplay(QtWidgets.QMainWindow):
         ])
 
         self.fps = QtGui.QLabel()
-        self.error_message = QtGui.QLabel()
+        self.message = QtGui.QLabel()
+        self.status = QtGui.QLabel("Stopped")
 
     def init_graphics(self):
         """Initialise the important graphics items"""
@@ -478,7 +494,8 @@ class BeamDisplay(QtWidgets.QMainWindow):
         self.info_pane_layout.addWidget(self.param_widget)
         self.info_pane_layout.addStretch(3)
         self.info_pane_layout.addWidget(self.fps)
-        self.info_pane_layout.addWidget(self.error_message)
+        self.info_pane_layout.addWidget(self.message)
+        self.info_pane_layout.addWidget(self.status)
 
         self.info_pane = QtWidgets.QWidget(self)
         self.info_pane.setLayout(self.info_pane_layout)

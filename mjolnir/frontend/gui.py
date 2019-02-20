@@ -3,11 +3,15 @@ import zmq
 import sys
 import argparse
 import atexit
+import logging
 from PyQt5 import QtWidgets, QtCore
 from artiq.protocols.pc_rpc import Client
 
 from mjolnir.ui.beam import BeamDisplay
 from mjolnir.drivers.camera import ThorlabsCCD
+
+
+logger = logging.getLogger(__name__)
 
 
 def zmq_setup(ctx, server, port):
@@ -23,6 +27,7 @@ def zmq_setup(ctx, server, port):
 def remote(args):
     ### Remote operation ###
     camera = Client(args.server, args.artiq_port)
+    sn = camera.get_serial_no()
     b = BeamDisplay(camera)
     ctx = zmq.Context()
     sock = zmq_setup(ctx, args.server, args.zmq_port)
@@ -40,20 +45,22 @@ def remote(args):
     timer.timeout.connect(qt_update)
     timer.start(50) # timeout ms
 
-    title = b.windowTitle() + " (remote: {}, {}, {})".format(
-        args.server, args.artiq_port, args.zmq_port)
+    title = b.windowTitle() + " (sn: {} @ host: {}, artiq: {}, zmq: {})".format(
+        sn, args.server, args.artiq_port, args.zmq_port)
     b.setWindowTitle(title)
 
 
 def local(args):
     ### Local operation ###
     camera = ThorlabsCCD(args.device)
+    sn = camera.get_serial_no()
     b = BeamDisplay(camera)
     camera.register_callback(lambda im: b.queue_image(im))
     atexit.register(camera.close)
 
-    title = b.windowTitle() + " (local: {})".format(args.device)
+    title = b.windowTitle() + " (sn: {} @ local)".format(sn)
     b.setWindowTitle(title)
+
 
 def get_argparser():
     parser = argparse.ArgumentParser(description="GUI for Thorlabs CMOS cameras")
@@ -81,6 +88,8 @@ def main():
     args = parser.parse_args()
     app = QtWidgets.QApplication(sys.argv)
     args.func(args)
+
+    logger.debug("Starting UI")
     sys.exit(app.exec_())
 
 

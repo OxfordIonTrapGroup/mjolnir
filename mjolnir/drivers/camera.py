@@ -1,12 +1,15 @@
 from . import uc480
-# print("imported uc480", flush=True)
 import numpy as np
 import ctypes
 import collections
 import time
-
-from threading import Thread
 import functools
+import logging
+from threading import Thread
+
+
+logger = logging.getLogger(__name__)
+
 
 # Thresholds for increasing and decreasing exposure
 auto_exposure_max_threshold = 220
@@ -32,7 +35,7 @@ def timeout(timeout):
                 t.start()
                 t.join(timeout)
             except Exception as je:
-                print('error starting thread')
+                logger.exception('error starting thread')
                 raise je
             ret = res[0]
             if isinstance(ret, BaseException):
@@ -47,8 +50,6 @@ class ThorlabsCCD:
     _POLL_PERIOD = 0.05
 
     def __init__(self, sn=None, framebuffer_len=100):
-        self.camera_sn = sn
-
         self.quit = False
         self.dead = False
         self.connected = False
@@ -66,9 +67,13 @@ class ThorlabsCCD:
 
         # connect to camera
         self._library_init()
-        self._connect()
+        try:
+            self._connect(sn)
+        except Exception as e:
+            self._library_cleanup()
+            raise
 
-        # Start image acquisition thread
+        logger.debug("Starting image acquisition thread")
         t = Thread(target=self._acquisition_thread, daemon=True)
         t.start()
 
@@ -79,20 +84,25 @@ class ThorlabsCCD:
         del self.c._lib
         del self.c
 
-    def _connect(self):
+    def _connect(self, sn=None):
         """Connect to camera"""
         id_ = 0
         for i in range(self.c._cam_list.dwCount):
             camera = self.c._cam_list.uci[i]
-            if self.camera_sn == int(camera.SerNo.decode()):
+            serial_no = camera.SerNo.decode()
+            if str(sn) in serial_no:
+                if id_:
+                    raise ValueError(
+                        "Multiple substring matches for {}".format(sn))
                 id_ = camera.dwDeviceID
-        if self.camera_sn is not None and id_ == 0:
-            raise ValueError("Camera {} not found".format(self.camera_sn))
+        if sn is not None and id_ == 0:
+            raise ValueError("Camera {} not found".format(sn))
         self.c.connect(id_, useDevID=True)
         self._get_sensor_info()
         self._get_exposure_params()
         self._get_aoi()
         self._get_aoi_absolute()
+        self._set_pixel_clock()
         self.connected = True
 
     def _disconnect(self):
@@ -121,6 +131,7 @@ class ThorlabsCCD:
                     # from here on in, the first axis of im is the x axis
                     # print("acquired!", flush=True)
                 except (MyTimeoutError, uc480.uc480Error) as e:
+                    logger.exception("Exception occurred, reconnecting")
                     self._reconnect()
                 else:
                     im = self._crop_to_aoi(im)
@@ -157,12 +168,29 @@ class ThorlabsCCD:
         """Turn off auto acquire"""
         self.acquisition_enabled = False
 
+    def get_serial_no(self):
+        """Return camera serial number"""
+        info = self._get_cam_info()
+        self._serial_no = info.SerNo.decode()
+        return self._serial_no
+
+    def _get_cam_info(self):
+        cam_info = uc480.CAMINFO()
+        self.c.call("is_GetCameraInfo", self.c._camID, ctypes.pointer(cam_info))
+        return cam_info
+
+    def _set_pixel_clock(self, clock=10):
+        """Set the pixel clock in MHz, defaults to 10MHz"""
+        self.c.call("is_PixelClock", self.c._camID, uc480.IS_PIXELCLOCK_CMD_SET,
+            ctypes.pointer(ctypes.c_int(clock)), ctypes.sizeof(ctypes.c_int))
+
     def _get_exposure_params(self):
         self.exposure = self.c.get_exposure()
         self.exposure_min, self.exposure_max, \
             self.exposure_inc = self.c.get_exposure_limits()
 
     def get_exposure_params(self):
+        """Return current exposure, minimum, maximum and increment values"""
         self._get_exposure_params()
         return self.exposure, self.exposure_min, self.exposure_max, self.exposure_inc
 

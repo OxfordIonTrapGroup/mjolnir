@@ -12,7 +12,6 @@ from mjolnir.drivers.camera import ThorlabsCCD
 
 
 logger = logging.getLogger(__name__)
-logging.basicConfig(level=logging.INFO)
 
 
 def zmq_setup(ctx, server, port):

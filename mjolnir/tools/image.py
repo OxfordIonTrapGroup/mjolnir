@@ -322,17 +322,17 @@ def fitting_function(x, pxc_0=0, pxc_1=0, cov_00=1, cov_01=0, cov_11=1, scale=1,
 
 class GaussianBeam:
     @classmethod
-    def f(cls, xdata, p):
+    def f(cls, pxmap, p):
         """Return points on a 2D gaussian given by parameters p
 
-        :param xdata: array of pixel map points to calculate value at
+        :param pxmap: array of pixel map points to calculate value at
         :param p: parameter dictionary
                   - pxc: centroid
                   - cov: covariance matrix
                   - scale: intensity of 'beam'
                   - offset: image background
         """
-        return _fitting_function(xdata, p)
+        return _fitting_function(pxmap, p)
 
     @classmethod
     def fit(cls, img, pxmap=None):

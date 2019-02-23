@@ -1,11 +1,8 @@
 import numpy as np
-from scipy.stats import multivariate_normal as mv
-# import matplotlib.pyplot as plt
-# from matplotlib import cm
-from numpy.linalg import eig
-# import matplotlib.image as mpimg
-# from mpl_toolkits.mplot3d import Axes3D
+from scipy import misc
+from scipy.stats import multivariate_normal
 
+from mjolnir.tools.image import *
 
 
 def generate_image(
@@ -19,7 +16,7 @@ def generate_image(
 
     pxmap = np.mgrid[0:m,0:n]
     pxmap = np.einsum("i...->...i", pxmap)
-    img = mv(centroid, cov).pdf(pxmap)
+    img = multivariate_normal(centroid, cov).pdf(pxmap)
 
     # scale it
     img *= intensity/np.amax(img)
@@ -33,75 +30,34 @@ def generate_image(
     return np.clip(img.astype(int), 0, 255)
 
 
-
 def load_image(fname):
-    img = mpimg.imread(fname)
-    m, n = img.shape
-    img = img.astype(float)
-    return m, n, img
+    img = misc.imread(fname)
+    img = img.astype(np.uint8)
+    return img.T
 
-
-def calculate_residuals(ydata, yfit):
-    return np.sum(np.abs(ydata-yfit))
-
-def calculate_quality(ydata, yfit):
-    rnorm = calculate_residuals(ydata, yfit)
-    s = np.sum(ydata)
-    return 1. - (rnorm/s)
-
-def gaussian_content(ydata, yfit):
-    """experimental figure of merit"""
-    # actually this isn't great, doesn't penalise elliptical beams
-    total = np.sum(np.multiply(ydata, yfit))
-    norm = np.sum(np.multiply(ydata, ydata))
-    return total/norm
 
 def main():
-    # Plot a 3d mesh of the image data
-    # and a surface of the fit
-    # maybe use this to test eigenvectors as well
-    fig = plt.figure()
+    filenames = [f+".bmp" for f in ["collimated", "collimated1", "focus", "focus1"]]
 
-    n, m, image = load_image("focus.bmp")
-    image = np.transpose(image)
+    for f in filenames:
+        img = load_image(f)
 
-    x = np.mgrid[0:m,0:n]
-    pos = np.einsum("i...->...i", x)
+        # Fitting whole image
+        p = GaussianBeam.fit(img)
 
-    methods = [
-        gaussian_beam.naive_fit,
-        # gaussian_beam.two_step_fit,
-        gaussian_beam.two_step_fit_mk2,
-        # gaussian_beam.lsq_fit,
-        gaussian_beam.lsq_cropped
-    ]
-    fits = [meth(x, image) for meth in methods]
-    fit_points = [mv(f['x0'], f['cov']).pdf(pos)*f['scale']+f['offset']
-                  for f in fits]
+        # Croppimg and downsampling
+        imgc, pxmap = auto_crop(img, dwnsmp_size=20)
+        dwnsmp = pxmap[0,1,0] - pxmap[0,0,0]
+        origin = pxmap[:,0,0]
 
-    centx, centy = fits[0]['x0'].astype(int)
-    hr = 25 #halfsize of plot region
-    pos = pos[centx-hr:centx+hr, centy-hr:centy+hr,:]
-    ydata = image[centx-hr:centx+hr, centy-hr:centy+hr]
-    print("sum: ", np.sum(ydata))
+        # Fit the cropped image and scale the fit results
+        p = GaussianBeam.fit(imgc)
+        p['pxc'] = p['pxc']*dwnsmp + origin
+        p['x_radius'] *= dwnsmp
+        p['y_radius'] *= dwnsmp
 
-    nplots = len(methods)
-    for i in range(nplots):
-        ax = fig.add_subplot(nplots, 1, i+1, projection='3d')
-        ax.plot_wireframe(pos[:,:,0], pos[:,:,1], ydata)
-
-        yfit = fit_points[i][centx-hr:centx+hr, centy-hr:centy+hr]
-        ax.plot_surface(pos[:,:,0], pos[:,:,1], yfit,
-            cmap=cm.coolwarm, alpha=0.6)
-
-        res = calculate_residuals(ydata, yfit)
-        q = calculate_quality(ydata, yfit)
-        gc = gaussian_content(ydata, yfit)
-        print("res norm: ", res)
-        print("quality: ", q)
-        print("gc: ", gc)
-
-    plt.show()
+        # Fit using the cropped/downsampled pixel map
+        p = GaussianBeam.fit(imgc, pxmap=pxmap)
 
 
 if __name__ == "__main__":

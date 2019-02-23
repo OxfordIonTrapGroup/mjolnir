@@ -287,8 +287,9 @@ def parameter_initialiser(pxmap, img):
     pxmap = np.einsum("i...->...i", pxmap)
     d = pxmap - pxc
 
-    # 1.2x speedup possible with ['einsum_path', (0, 1), (0, 1)]
-    cov = np.einsum("ijk,ij,ijl->kl", d, prob, d)
+    # 1.2x speedup with optimised path
+    path = ['einsum_path', (0, 1), (0, 1)]
+    cov = np.einsum("ijk,ij,ijl->kl", d, prob, d, optimize=path)
 
     p = {}
     p['pxc'] = pxc
@@ -306,10 +307,10 @@ def _fitting_function(pxmap, p):
     det = det2x2(p['cov'])
     inv = inv2x2(p['cov'])
 
-    pref = (1/(2*np.pi*np.sqrt(np.abs(det))))
+    # no possible speedup with einsum path
     expo = -0.5*np.einsum("...k,kl,...l->...", d, inv, d)
 
-    y = p['scale']*pref*np.exp(expo) + p['offset']
+    y = p['scale']*np.exp(expo) + p['offset']
 
     return y
 

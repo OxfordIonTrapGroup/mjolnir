@@ -190,7 +190,7 @@ def centred_crop(img, centre, region, pxmap=None):
     return cropped_img, cropped_pxmap
 
 
-def auto_crop(img, pxmap=None, dwnsmp_size=None):
+def auto_crop(img, pxmap=None, dwnsmp_size=None, fill_target=0.3):
     """Auto crop an image for good fitting, with optional downsample for faster
     fitting.
 
@@ -206,7 +206,6 @@ def auto_crop(img, pxmap=None, dwnsmp_size=None):
     min_ = np.amin(img)
     contrast = (max_ - min_)
     centre = np.unravel_index(np.argmax(img), img.shape)
-    fill_target = 0.3
 
     def fill_factor(img):
         """Calculate what fraction of pixels are above dark value"""

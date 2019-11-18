@@ -5,14 +5,21 @@ import time
 import zmq
 
 from artiq.protocols.pc_rpc import simple_server_loop
-from artiq.tools import verbosity_args, simple_network_args, init_logger
+from artiq.tools import simple_network_args, init_logger
 from mjolnir.drivers.camera import ThorlabsCCD
+
+# Copy pasted from oxart, since that isn't publicly available
+# verbosity_args() was renamed to add_common_args() in ARTIQ 5.0; support both.
+try:
+    from artiq.tools import add_common_args
+except ImportError:
+    from artiq.tools import verbosity_args as add_common_args
 
 
 def get_argparser():
     parser = argparse.ArgumentParser()
     simple_network_args(parser, 4000)
-    verbosity_args(parser)
+    add_common_args(parser)
     parser.add_argument("--broadcast-images", action="store_true")
     parser.add_argument("--zmq-bind", default="*")
     parser.add_argument("--zmq-port", default=5555, type=int)

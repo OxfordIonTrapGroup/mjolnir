@@ -19,9 +19,6 @@ requirements = [
 
 console_scripts = [
     "mjolnir_server=mjolnir.frontend.server:main",
-]
-
-gui_scripts = [
     "mjolnir_gui=mjolnir.frontend.gui:main",
     "mjolnir_launcher=mjolnir.frontend.launcher:main",
 ]
@@ -34,6 +31,5 @@ setup(
     install_requires=requirements,
     entry_points={
         "console_scripts":console_scripts,
-        "gui_scripts":gui_scripts,
     }
 )

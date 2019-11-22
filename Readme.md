@@ -1,26 +1,24 @@
 # Mjolnir (Thor's Camera)
 
-A suite of (fairly minimal) programs to replace ThorCam, built
-using pyqtgraph.
-The GUI can connect to cameras directly via USB, or you can
-use the server script to send images to GUI subscribers over
-a local network.
+A suite of (fairly minimal) programs to replace ThorCam, built using pyqtgraph.
+The Thorlabs cameras are just rebadged [IDS](https://en.ids-imaging.com/home.html) cameras, so IDS's software could be better, but I haven't tried it.
+The `mjolnir` GUI can connect to cameras directly via USB, or you can use the server script to send images to GUI subscribers over a local network.
 
 Mjolnir uses ARTIQ for its remote procedure calls (RPCs).
-Installing ARTIQ is overkill, since we only need the protocols,
-but it's ubiquitous in the Oxford Ion Trap Group.
-Sorry!
-We're aiming to provide a minimal ARTIQ install with just the
-RPC protocol soon which will make things much better.
+Installing ARTIQ is overkill, since we only need the protocols, but it's ubiquitous in the Oxford Ion Trap Group and no minimal version is available.
 
 
 ## Installation
 
-Follow the instructions for installing ARTIQ, then clone the
-repo and pip install mjolnir into your environment.
+The software currently uses the Thorlabs DLL (on Windows) that is installed when installing Thorcam.
+Linux support is tenuous at best but uses libueye from [IDS](https://en.ids-imaging.com/download-ueye-lin64.html).
 
-Or download the executable files, it's much easier...
-All but the launcher must have command line arguments supplied.
+
+Typically installation will use [conda](https://anaconda.org/) to provide a segregated python environment.
+First, follow the [instructions for installing ARTIQ](https://m-labs.hk/artiq/manual/installing.html).
+Then use pip to install mjolnir into your environment:
+
+`pip install git+https://github.com/OxfordIonTrapGroup/mjolnir`
 
 
 ## Usage
@@ -30,11 +28,8 @@ Help is available by using `--help` with any of the commands.
 
 ### `mjolnir_launcher`
 
-This is just a small launcher window that you can use to enter the
-main GUI.
-Its main use is when the camera is connected locally, as it will
-(eventually once I implement this) list the serial numbers of all
-USB connected cameras.
+A small launcher window that you can use to enter the main GUI.
+Its main use is when the camera is connected locally, as it can list the serial numbers of all USB connected cameras.
 
 When invoking from the command line, there are no arguments:
 
@@ -44,16 +39,12 @@ When invoking from the command line, there are no arguments:
 ### `mjolnir_gui`
 
 The meat of the program.
-Fitting of 2D Gaussians showing the position on the camera and the
-parameters of the fit.
-A zoomed image of the beam, with a corresponding image of the fit
-residuals is also shown.
+Fitting of 2D Gaussians showing the position on the camera and the parameters of the fit.
+A zoomed image of the beam, with a corresponding image of the fit residuals is also shown.
 You can mark positions (but not with the mouse).
 Then you will be given the displacement of the beam from the mark.
 
-When invoking from the command line, you must supply the connection
-type (local or remote) and parameters related to that type, i.e.
-camera serial number for local or network arguments for remote. E.g.:
+When invoking from the command line, you must supply the connection type (local or remote) and parameters related to that type, i.e. camera serial number for local or network arguments for remote. E.g.:
 
 `$ mjolnir_gui remote --server 127.0.0.1 --artiq-port 4000 --zmq-port 5555`
 
@@ -66,42 +57,41 @@ The default ports are listed here and can be omitted.
 `$ mjolnir_server --device <serial> --server 127.0.0.1 --artiq-port 4000 --zmq-port 5555`
 
 
+### Tools
+
+The functions used for fitting in the GUI can be used standalone on any monochrome image (provided it's suitably arranged as a numpy array).
+The fit function is slow when used on large images due to the number of function evaluations - methods are provided for sensibly cropping and downsampling images such that the fit is much faster.
+
+
 ## Development
 
-You probably want to use virtualenv as it seems to do a much
-better job of isolating environments than conda.
-Try to get a minimal ARTIQ installation, then pip install mjolnir.
+### Building executables
 
-The only lines containing ARTIQ imports are:
+Building packaged executables is generally a pain in the neck - I wouldn't bother!
+
+My own thoughts on this: conda itself is quite poor at keeping packages segregated when building executables with PyInstaller (I ended up resorting to virtualenv instead of conda).
+Python 3.6 and PyInstaller 3.4 seem to play nicely together.
+The built executable should be around 80MB.
+
+Install ARTIQ, strip out all the packages we don't need, then install `mjolnir`.
+
+The only lines in `mjolnir` containing ARTIQ imports are:
 
 * `from artiq.protocols.pc_rpc import simple_server_loop`
 * `from artiq.tools import verbosity_args, simple_network_args, init_logger`
 * `from artiq.protocols.pc_rpc import Client`
 
-`artiq.protocols` is well isolated, but `artiq.tools` imports things from
-elsewhere in the codebase that spiral into lots of things being imported
-unnecessarily.
+`artiq.protocols` is well isolated, but `artiq.tools` imports things from elsewhere in the codebase that spiral into lots of things being imported unnecessarily.
 Comment out the `is_experiment` import and any function you find it in!
-
-
-### Building executables
-
-Python 3.6 and PyInstaller 3.4 seem to play nicely together. The built
-executable should be around 80MB.
 
 
 ### New features?
 
-Please let me know of any improvements you think could be made to the
-interface: I made decisions that made sense to me, but if they don't make sense
-to you I'll see what I can do!
-
-Some things should be implemented but are not - at the moment there is no way
-of setting the ROI of the camera, for example.
+If `mjolnir` looks useful to you, feedback is appreciated!
+Please use the GitHub issue tracker to raise bugs/improvements.
 
 
 ## Acknowledgements
 
-The driver for the cameras (uc480) was taken from:
-https://github.com/ddietze/pyUVVIS .
+The driver for the cameras (uc480) was taken from: <https://github.com/ddietze/pyUVVIS>.
 This appears to no longer be maintained.

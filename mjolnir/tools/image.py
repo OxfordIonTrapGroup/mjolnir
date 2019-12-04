@@ -174,8 +174,9 @@ def centred_crop(img, centre, region, pxmap=None):
     lims = lims.astype(int)
     lims = np.clip(lims, llim, ulim)
 
-    # I think there may be a better algorithm for doing this; haven't thought
-    # of it yet though
+    # Find out if the region would lie outside the image, by
+    # checking that the difference between the (clipped) limits
+    # is not less than the desired cropped size.
     diffs = np.diff(lims, axis=0)[0]
     for j, diff in enumerate(diffs):
         if diff != region:
@@ -323,7 +324,7 @@ def fitting_function(x, pxc_0=0, pxc_1=0, cov_00=1, cov_01=0, cov_11=1, scale=1,
 
 class GaussianBeam:
     @classmethod
-    def f(cls, pxmap, p):
+    def evaluate(cls, pxmap, p):
         """Return points on a 2D gaussian given by parameters p
 
         :param pxmap: array of pixel map points to calculate value at
@@ -334,6 +335,14 @@ class GaussianBeam:
                   - offset: image background
         """
         return _fitting_function(pxmap, p)
+
+    @classmethod
+    def f(cls, pxmap, p):
+        """Return points on a 2D gaussian given by parameters p
+
+        Deprecated alias for `evaluate`
+        """
+        return cls.evaluate(pxmap, p)
 
     @classmethod
     def fit(cls, img, pxmap=None):

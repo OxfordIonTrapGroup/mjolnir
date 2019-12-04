@@ -11,6 +11,7 @@ Installing ARTIQ is overkill, since we only need the protocols, but it's ubiquit
 ## Installation
 
 The software currently uses the Thorlabs DLL (on Windows) that is installed when installing Thorcam.
+Make sure the DLL (usually located at `C:\Program Files\Thorlabs\Scientific Imaging\uc480_64.dll` for Windows 64-bit) is on your system path, otherwise ctypes won't be able to find it.
 Linux support is tenuous at best but uses libueye from [IDS](https://en.ids-imaging.com/download-ueye-lin64.html).
 
 

@@ -8,7 +8,7 @@ from PyQt5 import QtWidgets, QtCore
 from artiq.protocols.pc_rpc import Client
 
 from mjolnir.ui.beam import BeamDisplay
-from mjolnir.drivers.camera import ThorlabsCCD
+from mjolnir.drivers.camera import Camera, list_serial_numbers
 
 
 logger = logging.getLogger(__name__)
@@ -52,7 +52,12 @@ def remote(args):
 
 def local(args):
     ### Local operation ###
-    camera = ThorlabsCCD(args.device)
+    if args.list:
+        serials = list_serial_numbers()
+        print(serials if serials else "No cameras found")
+        sys.exit()
+
+    camera = Camera(args.device)
     sn = camera.get_serial_no()
     b = BeamDisplay(camera)
     camera.register_callback(lambda im: b.queue_image(im))
@@ -75,6 +80,8 @@ def get_argparser():
 
     local_parser = subparsers.add_parser("local",
         help="connect directly to a local camera")
+    local_parser.add_argument("--list", action="store_true",
+        help="list connected cameras (ignores all other arguments)")
     local_parser.add_argument("--device", "-d", type=int, default=None,
         help="camera serial number, uses first available if not supplied")
     local_parser.set_defaults(func=local)

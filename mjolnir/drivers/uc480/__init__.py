@@ -81,7 +81,7 @@ class uc480:
         """
         # variables
         self._lib = None
-        self._cam_list = []
+        self._cam_list = create_camera_list(0)
         self._camID = None
         self._swidth = 0
         self._sheight = 0

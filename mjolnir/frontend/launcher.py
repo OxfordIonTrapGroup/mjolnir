@@ -3,7 +3,7 @@ import sys
 from PyQt5 import QtGui, QtWidgets, QtCore
 
 from mjolnir.frontend.gui import get_argparser
-from mjolnir.drivers import uc480
+from mjolnir.drivers.camera import list_serial_numbers
 
 
 class ConnectionDialog(QtWidgets.QDialog):
@@ -17,7 +17,6 @@ class ConnectionDialog(QtWidgets.QDialog):
     """
     def __init__(self):
         super().__init__()
-        self.lib = None
         self.parser = get_argparser()
         self.init_ui()
 
@@ -51,15 +50,10 @@ class ConnectionDialog(QtWidgets.QDialog):
         #         "Error initialising: {}".format(e))
 
     def _get_cam_list(self):
-        lib = uc480.uc480()
-        lib.get_cameras()
-        self.cameras = [lib._cam_list.uci[i]
-            for i in range(lib._cam_list.dwCount)]
-        self.serials = [cam.SerNo.decode() for cam in self.cameras]
+        self.serials = list_serial_numbers()
 
         self.serial_number.clear()
         self.serial_number.insertItems(0, self.serials)
-        del lib
 
     def init_ui(self):
         self.conn_type = QtGui.QComboBox()

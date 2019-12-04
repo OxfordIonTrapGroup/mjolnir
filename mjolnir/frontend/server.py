@@ -6,7 +6,7 @@ import zmq
 
 from artiq.protocols.pc_rpc import simple_server_loop
 from artiq.tools import simple_network_args, init_logger
-from mjolnir.drivers.camera import ThorlabsCCD
+from mjolnir.drivers.camera import Camera, list_serial_numbers
 
 # Copy pasted from oxart, since that isn't publicly available
 # verbosity_args() was renamed to add_common_args() in ARTIQ 5.0; support both.
@@ -20,6 +20,8 @@ def get_argparser():
     parser = argparse.ArgumentParser()
     simple_network_args(parser, 4000)
     add_common_args(parser)
+    parser.add_argument("--list", action="store_true",
+        help="list connected cameras (ignores all other arguments)")
     parser.add_argument("--broadcast-images", action="store_true")
     parser.add_argument("--zmq-bind", default="*")
     parser.add_argument("--zmq-port", default=5555, type=int)
@@ -52,7 +54,12 @@ def main():
     args = get_argparser().parse_args()
     init_logger(args)
 
-    dev = ThorlabsCCD(sn=args.device)
+    if args.list:
+        serials = list_serial_numbers()
+        print(serials if serials else "No cameras found")
+        return
+
+    dev = Camera(sn=args.device)
     run_server(dev, args)
 
 

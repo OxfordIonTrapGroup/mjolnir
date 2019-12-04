@@ -7,17 +7,32 @@ import functools
 import logging
 from threading import Thread
 
+__all__ = {
+    "Camera",
+    "list_serial_numbers"
+}
+
 
 logger = logging.getLogger(__name__)
-
 
 # Thresholds for increasing and decreasing exposure
 auto_exposure_max_threshold = 220
 auto_exposure_min_threshold = 150
 
 
+def list_serial_numbers():
+    """Find USB connected cameras"""
+    lib = uc480.uc480()
+    lib.get_cameras()
+    cameras = [lib._cam_list.uci[i] for i in range(lib._cam_list.dwCount)]
+    serials = [cam.SerNo.decode() for cam in cameras]
+    del lib
+    return serials
+
+
 class MyTimeoutError(Exception):
     pass
+
 
 def timeout(timeout):
     def deco(func):
@@ -45,7 +60,22 @@ def timeout(timeout):
     return deco
 
 
-class ThorlabsCCD:
+class Camera:
+    """
+    Class for interfacing with a single IDS camera
+
+    A Camera instance can be initialised using the desired serial number,
+    or if no serial number is supplied, will connect to the first available.
+
+    The `get_image` function returns images from a frame buffer; in order to
+    to have images in the buffer, either `start_acquisition` (which acquires
+    images continuously) or `single_acquisition` must be called.
+
+    Callbacks can be registered such that for every new frame acquired, the
+    function is called, with the numpy array forming the image as the sole
+    argument.
+    """
+
     # Servo polling period in seconds
     _POLL_PERIOD = 0.05
 
@@ -180,7 +210,10 @@ class ThorlabsCCD:
         return cam_info
 
     def _set_pixel_clock(self, clock=10):
-        """Set the pixel clock in MHz, defaults to 10MHz"""
+        """Set the pixel clock in MHz, defaults to 10MHz
+
+        High values of the pixel clock (>40MHz) can cause errors.
+        """
         self.c.call("is_PixelClock", self.c._camID, uc480.IS_PIXELCLOCK_CMD_SET,
             ctypes.pointer(ctypes.c_int(clock)), ctypes.sizeof(ctypes.c_int))
 
@@ -317,7 +350,6 @@ class ThorlabsCCD:
         return image[x_start:x_end, y_start:y_end]
 
     def _get_sensor_info(self):
-        # get sensor info
         pInfo = uc480.SENSORINFO()
         self.c.call("is_GetSensorInfo", self.c._camID, ctypes.pointer(pInfo))
         self.ccd_width = pInfo.nMaxWidth

@@ -5,7 +5,8 @@ The Thorlabs cameras are just rebadged [IDS](https://en.ids-imaging.com/home.htm
 The `mjolnir` GUI can connect to cameras directly via USB, or you can use the server script to send images to GUI subscribers over a local network.
 
 Mjolnir uses ARTIQ for its remote procedure calls (RPCs).
-Installing ARTIQ is overkill, since we only need the protocols, but it's ubiquitous in the Oxford Ion Trap Group and no minimal version is available.
+~~Installing ARTIQ is overkill, since we only need the protocols, but it's ubiquitous in the Oxford Ion Trap Group and no minimal version is available.~~
+I need to patch in [sipyco](https://github.com/m-labs/sipyco)!
 
 
 ## Installation

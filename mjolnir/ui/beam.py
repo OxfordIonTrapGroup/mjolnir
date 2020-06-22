@@ -339,7 +339,8 @@ class BeamDisplay(QtWidgets.QMainWindow):
         self.single_acq = QtGui.QPushButton("Single Acquisition")
         self.start_acq = QtGui.QPushButton("Start Acquisition")
         self.stop_acq = QtGui.QPushButton("Stop Acquisition")
-
+        
+        self.exposure_label = QtGui.QLabel("Exposure Time:")
         self.exposure = QtGui.QDoubleSpinBox()
         self.exposure.setSuffix(" ms")
         self.get_exposure_params()
@@ -489,6 +490,7 @@ class BeamDisplay(QtWidgets.QMainWindow):
         self.info_pane_layout.addWidget(self.start_acq)
         self.info_pane_layout.addWidget(self.single_acq)
         self.info_pane_layout.addWidget(self.stop_acq)
+        self.info_pane_layout.addWidget(self.exposure_label)
         self.info_pane_layout.addWidget(self.exposure)
         self.info_pane_layout.addStretch(1)
         self.info_pane_layout.addWidget(self.param_widget)

@@ -4,10 +4,6 @@ A suite of (fairly minimal) programs to replace ThorCam, built using pyqtgraph.
 The Thorlabs cameras are just rebadged [IDS](https://en.ids-imaging.com/home.html) cameras, so IDS's software could be better, but I haven't tried it.
 The `mjolnir` GUI can connect to cameras directly via USB, or you can use the server script to send images to GUI subscribers over a local network.
 
-~~Mjolnir uses ARTIQ for its remote procedure calls (RPCs).
-Installing ARTIQ is overkill, since we only need the protocols, but it's ubiquitous in the Oxford Ion Trap Group and no minimal version is available.
-I need to patch in [sipyco](https://github.com/m-labs/sipyco)!~~
-
 This version of Mjolnir uses [sipyco](https://github.com/m-labs/sipyco) for its remote procedure calls (RPCs).
 
 
@@ -21,7 +17,6 @@ Linux support is tenuous at best but uses libueye from [IDS](https://en.ids-imag
 Typically installation will use [conda](https://anaconda.org/) to provide a segregated python environment.
 This version is compatible with Python 3.7.
 
-~~First, follow the [instructions for installing ARTIQ](https://m-labs.hk/artiq/manual/installing.html).~~
 First, use pip to install [sipyco](https://github.com/m-labs/sipyco):
 
 `pip install git+https://github.com/m-labs/sipyco`

@@ -124,6 +124,7 @@ class BeamDisplay(QtWidgets.QMainWindow):
             self.x_centroid.setText(self.px_string(up['pxc'][0]))
             self.y_centroid.setText(self.px_string(up['pxc'][1]))
             self.ellipticity.setText("{:.3f}".format(up['e']))
+            
         except KeyError:
             return
 
@@ -324,6 +325,8 @@ class BeamDisplay(QtWidgets.QMainWindow):
         self.stop_acq.clicked.connect(lambda: self.cam.stop_acquisition())
         self.stop_acq.clicked.connect(lambda: self.status.setText("Stopped"))
         self.stop_acq.clicked.connect(lambda: self.fps.hide())
+        self.reset_view.clicked.connect(lambda: self.vb_zoom.enableAutoRange())
+        self.reset_view.clicked.connect(lambda: self.vb_residuals.enableAutoRange())
         # connect after finding params so we don't send accidental update
         self.exposure.valueChanged.connect(self.exposure_cb)
         self.mark.clicked.connect(self.mark_cb)
@@ -344,6 +347,8 @@ class BeamDisplay(QtWidgets.QMainWindow):
         self.exposure = QtGui.QDoubleSpinBox()
         self.exposure.setSuffix(" ms")
         self.get_exposure_params()
+
+        self.reset_view = QtGui.QPushButton("Reset View")
 
         self.maj_radius = QtGui.QLabel()
         self.min_radius = QtGui.QLabel()
@@ -492,6 +497,7 @@ class BeamDisplay(QtWidgets.QMainWindow):
         self.info_pane_layout.addWidget(self.stop_acq)
         self.info_pane_layout.addWidget(self.exposure_label)
         self.info_pane_layout.addWidget(self.exposure)
+        self.info_pane_layout.addWidget(self.reset_view)
         self.info_pane_layout.addStretch(1)
         self.info_pane_layout.addWidget(self.param_widget)
         self.info_pane_layout.addStretch(3)

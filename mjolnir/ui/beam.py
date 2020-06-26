@@ -2,6 +2,7 @@ import pyqtgraph as pg
 import numpy as np
 from PyQt5 import QtGui, QtWidgets, QtCore
 import collections
+import pickle
 
 from mjolnir.ui.worker import Worker
 from mjolnir.tools import tools
@@ -62,7 +63,6 @@ class BeamDisplay(QtWidgets.QMainWindow):
                 self._last_update, self._fps)
             self.fps.setText("{:.1f} fps".format(self._fps))
             self.fps.show()
-
         try:
             up = self.updateq.popleft()
         except IndexError:
@@ -167,6 +167,133 @@ class BeamDisplay(QtWidgets.QMainWindow):
         exp = self.exposure.value()
         self.cam.set_exposure_ms(exp)
 
+    def save_cb(self):
+        '''Saves the current frame. Specifically, it pickles the self._up dictionary.
+        Any ongoing acquisition is halted.
+        Raises an error if there is no data available in the current frame.'''
+        
+        try:
+            self.cam.stop_acquisition()
+            self.status.setText("Stopped: Save Frame")
+            self.fps.hide()
+            
+            # Crude test for save error
+            error_test = self._up['semimaj']
+            
+            name, _filters = QtGui.QFileDialog.getSaveFileName(self, "Save Frame", "untitled",
+                                                               "Pickle (*.pickle)")
+            with open(name, 'wb') as f:
+                pickle.dump(self._up, f, pickle.HIGHEST_PROTOCOL)
+        
+        except (KeyError, TypeError):
+            msg = QtGui.QMessageBox()
+            msg.setIcon(QtGui.QMessageBox.Critical)
+            msg.setText("Error: No data to save.")
+            msg.setWindowTitle("Error")
+            msg.setStandardButtons(QtGui.QMessageBox.Ok)
+            msg.exec()
+
+    def load_cb(self):
+        '''Loads a saved frame. Specifically, it unpickles a dictionary from save_cb.
+        Any ongoing acquisition is halted.
+        Once the dictionary is unpickled, the function assigns the proper variables to display the frame.
+        The assignment code is copied from update().
+        Raises an error if the frame does not load properly.'''
+
+        try:
+            self.cam.stop_acquisition()
+            self.status.setText("Stopped: Load Frame")
+            self.fps.hide()
+            
+            name, _filters = QtGui.QFileDialog.getOpenFileName(self, "Load Frame", "",
+                                                               "Pickle (*.pickle)")
+            with open(name, 'rb') as f:
+                d = pickle.load(f)
+
+            # Crude test for load error
+            error_test = d['semimaj']
+
+            up = d
+            self._up = up
+
+            def finish():
+                self._last_update, self._fps = tools.update_rate(
+                    self._last_update, self._fps)
+                self.fps.setText("{:.1f} fps".format(self._fps))
+                self.fps.show()
+
+            options = {'autoRange': False, 'autoLevels': False}
+            self.image.setImage(up['im'], **options)
+
+            try:
+                self.zoom.setImage(up['im_crop'], **options)
+            except KeyError:
+                pass
+
+            failure = up.get('failure', None)
+            if failure:
+                self.message.setText(failure)
+                self.message.show()
+                finish()
+                return
+            else:
+                self.message.hide()
+
+            try:
+                self.residuals.setImage(up['im_res'], lut=self.residual_LUT, **options)
+
+                self.x_slice.setData(up['x'], up['x_slice'])
+                self.x_fit.setData(up['x'], up['x_fit'])
+
+                self.y_slice.setData(up['y_slice'], up['y'])
+                self.y_fit.setData(up['y_fit'], up['y'])
+
+                # Sub-pixel position works with QPointF
+                centroid = QtCore.QPointF(*up['pxc'])
+                self.fit_v_line.setPos(centroid)
+                self.fit_h_line.setPos(centroid)
+
+                # cache the centroid in case we need to set a mark
+                self._centroid = centroid
+
+                self.history.append(up['pxc'])
+                self.replot_history()
+                self._history_timer.start()
+
+                # 'zoom_centre' is a QPointF
+                self.fit_maj_line.setPos(up['zoom_centre'])
+                self.fit_min_line.setPos(up['zoom_centre'])
+                self.fit_maj_line.setAngle(up['semimaj_angle'])
+                self.fit_min_line.setAngle(up['semimin_angle'])
+
+                self.isocurve.setLevel(up['iso_level'])
+                self.isocurve.setData(up['im_fit'])
+
+                self.maj_radius.setText(self.px_string(up['semimaj']))
+                self.min_radius.setText(self.px_string(up['semimin']))
+                self.avg_radius.setText(self.px_string(up['avg_radius']))
+                self.x_radius.setText(self.px_string(up['x_radius']))
+                self.y_radius.setText(self.px_string(up['y_radius']))
+                self.x_centroid.setText(self.px_string(up['pxc'][0]))
+                self.y_centroid.setText(self.px_string(up['pxc'][1]))
+                self.ellipticity.setText("{:.3f}".format(up['e']))
+                
+            except KeyError:
+                return
+
+            if self._mark is not None:
+                self.update_deltas()
+
+            self.status.setText("Load Frame")
+            self.fps.hide()
+
+        except:
+            msg = QtGui.QMessageBox()
+            msg.setIcon(QtGui.QMessageBox.Critical)
+            msg.setText("Error: Unable to load frame.")
+            msg.setWindowTitle("Error")
+            msg.setStandardButtons(QtGui.QMessageBox.Ok)
+            msg.exec()
     def aoi_cb(self):
         pass
 
@@ -329,6 +456,8 @@ class BeamDisplay(QtWidgets.QMainWindow):
         self.reset_view.clicked.connect(lambda: self.vb_residuals.enableAutoRange())
         # connect after finding params so we don't send accidental update
         self.exposure.valueChanged.connect(self.exposure_cb)
+        self.save.clicked.connect(self.save_cb)
+        self.load.clicked.connect(self.load_cb)
         self.mark.clicked.connect(self.mark_cb)
         self.unmark.clicked.connect(self.unmark_cb)
 
@@ -349,6 +478,8 @@ class BeamDisplay(QtWidgets.QMainWindow):
         self.get_exposure_params()
 
         self.reset_view = QtGui.QPushButton("Reset View")
+        self.save = QtGui.QPushButton("Save Frame")
+        self.load = QtGui.QPushButton("Load Frame")
 
         self.maj_radius = QtGui.QLabel()
         self.min_radius = QtGui.QLabel()
@@ -498,6 +629,8 @@ class BeamDisplay(QtWidgets.QMainWindow):
         self.info_pane_layout.addWidget(self.exposure_label)
         self.info_pane_layout.addWidget(self.exposure)
         self.info_pane_layout.addWidget(self.reset_view)
+        self.info_pane_layout.addWidget(self.save)
+        self.info_pane_layout.addWidget(self.load)
         self.info_pane_layout.addStretch(1)
         self.info_pane_layout.addWidget(self.param_widget)
         self.info_pane_layout.addStretch(3)

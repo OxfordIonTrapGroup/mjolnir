@@ -1,8 +1,7 @@
 # Mjolnir (Thor's Camera)
 
 A suite of (fairly minimal) programs to replace ThorCam, built using pyqtgraph.
-The Thorlabs cameras are just rebadged [IDS](https://en.ids-imaging.com/home.html) cameras, so IDS's software could be better, but I haven't tried it.
-The `mjolnir` GUI can connect to cameras directly via USB, or you can use the server script to send images to GUI subscribers over a local network.
+The `mjolnir` GUI can connect to the C1285R12M camera directly via USB, or you can use the server script to send images to GUI subscribers over a local network.
 
 This version of Mjolnir uses [sipyco](https://github.com/m-labs/sipyco) for its remote procedure calls (RPCs).
 

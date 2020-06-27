@@ -9,7 +9,7 @@ This version of Mjolnir uses [sipyco](https://github.com/m-labs/sipyco) for its 
 ## Installation
 
 The software currently uses the Thorlabs DLL (on Windows) that is installed when installing Thorcam.
-Make sure the DLL (usually located at `C:\Program Files\Thorlabs\Scientific Imaging\uc480_64.dll` for Windows 64-bit) is on your system path, otherwise ctypes won't be able to find it.
+Make sure the DLL (usually located at `C:\Program Files\Thorlabs\Scientific Imaging\DCx Camera Support\USB Driver Package\uc480_64.dll` for Windows 64-bit) is on your system path, otherwise ctypes won't be able to find it.
 Linux support is tenuous at best but uses libueye from [IDS](https://en.ids-imaging.com/download-ueye-lin64.html).
 
 
@@ -100,3 +100,4 @@ Please use the GitHub issue tracker to raise bugs/improvements.
 
 The driver for the cameras (uc480) was taken from: <https://github.com/ddietze/pyUVVIS>.
 This appears to no longer be maintained.
+The driver uses the Thorlabs DLL mentioned previously.

@@ -452,6 +452,7 @@ class BeamDisplay(QtWidgets.QMainWindow):
         self.stop_acq.clicked.connect(lambda: self.cam.stop_acquisition())
         self.stop_acq.clicked.connect(lambda: self.status.setText("Stopped"))
         self.stop_acq.clicked.connect(lambda: self.fps.hide())
+        self.reset_view.clicked.connect(lambda: self.vb_image.enableAutoRange())
         self.reset_view.clicked.connect(lambda: self.vb_zoom.enableAutoRange())
         self.reset_view.clicked.connect(lambda: self.vb_residuals.enableAutoRange())
         # connect after finding params so we don't send accidental update

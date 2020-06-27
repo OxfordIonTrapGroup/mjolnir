@@ -209,8 +209,8 @@ class Camera:
         self.c.call("is_GetCameraInfo", self.c._camID, ctypes.pointer(cam_info))
         return cam_info
 
-    def _set_pixel_clock(self, clock=10):
-        """Set the pixel clock in MHz, defaults to 10MHz
+    def _set_pixel_clock(self, clock=20):
+        """Set the pixel clock in MHz, defaults to 20MHz
 
         High values of the pixel clock (>40MHz) can cause errors.
         """

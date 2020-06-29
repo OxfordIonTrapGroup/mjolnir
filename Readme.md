@@ -1,7 +1,7 @@
 # Mjolnir (Thor's Camera)
 
 A suite of (fairly minimal) programs to replace ThorCam, built using pyqtgraph.
-The `mjolnir` GUI can connect to the C1285R12M camera directly via USB, or you can use the server script to send images to GUI subscribers over a local network.
+The `mjolnir` GUI can connect to the C1285R12M (which Thorlabs sells as [DCC1545M](https://www.thorlabs.com/thorproduct.cfm?partnumber=DCC1545M)) camera directly via USB, or you can use the server script to send images to GUI subscribers over a local network.
 
 This version of Mjolnir uses [sipyco](https://github.com/m-labs/sipyco) for its remote procedure calls (RPCs).
 

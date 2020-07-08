@@ -3,6 +3,7 @@ import numpy as np
 from PyQt5 import QtGui, QtWidgets, QtCore
 import collections
 import pickle
+import time
 
 from mjolnir.ui.worker import Worker
 from mjolnir.tools import tools
@@ -15,8 +16,12 @@ class BeamDisplay(QtWidgets.QMainWindow):
         super().__init__()
 
         self.cam = camera
-        # Pixel width in microns (get from camera?)
-        self._px_width = 5.2
+        
+        # Pixel width in microns (get from camera if not tsi)
+        if self.cam.is_tsi_cam:
+            self._px_width = self.cam.get_pixel_width()
+        else:
+            self._px_width = 5.2 # change this value depending on camera
 
         # Deques discard the oldest value when full
         self.imageq = collections.deque(maxlen=3)
@@ -59,9 +64,12 @@ class BeamDisplay(QtWidgets.QMainWindow):
     @QtCore.pyqtSlot()
     def update(self):
         def finish():
+            self._exp, self._exp_min, self._exp_max, self._exp_inc = self.cam.get_exposure_params()
+            self.exp.setText("Exposure: {:.3f} ms".format(self._exp))
             self._last_update, self._fps = tools.update_rate(
                 self._last_update, self._fps)
-            self.fps.setText("{:.1f} fps".format(self._fps))
+            self.fps.setText("Frame rate: {:.1f} fps".format(self._fps))
+            self.exp.show()
             self.fps.show()
         try:
             up = self.updateq.popleft()
@@ -167,6 +175,17 @@ class BeamDisplay(QtWidgets.QMainWindow):
         exp = self.exposure.value()
         self.cam.set_exposure_ms(exp)
 
+    def get_frame_rate_params(self):
+        val, min_, max_, step = self.cam.get_frame_rate_params()
+        self.frame_rate.setRange(min_,max_)
+        self.frame_rate.setSingleStep(step)
+        self.frame_rate.setValue(val)
+
+    def frame_rate_cb(self):
+        fps = self.frame_rate.value()
+        self.cam.set_frame_rate(fps)
+        self.get_exposure_params()
+
     def save_cb(self):
         '''Saves the current frame. Specifically, it pickles the self._up dictionary.
         Any ongoing acquisition is halted.
@@ -217,9 +236,12 @@ class BeamDisplay(QtWidgets.QMainWindow):
             self._up = up
 
             def finish():
+                self._exp, self._exp_min, self._exp_max, self._exp_inc = self.cam.get_exposure_params()
+                self.exp.setText("Exposure: {:.3f} ms".format(self._exp))
                 self._last_update, self._fps = tools.update_rate(
                     self._last_update, self._fps)
                 self.fps.setText("{:.1f} fps".format(self._fps))
+                self.exp.show()
                 self.fps.show()
 
             options = {'autoRange': False, 'autoLevels': False}
@@ -449,14 +471,20 @@ class BeamDisplay(QtWidgets.QMainWindow):
         self.single_acq.clicked.connect(lambda: self.status.setText("Single"))
         self.start_acq.clicked.connect(lambda: self.cam.start_acquisition())
         self.start_acq.clicked.connect(lambda: self.status.setText("Started"))
+        if self.cam.is_tsi_cam:
+            self.start_acq.clicked.connect(lambda: self.frame_rate.setEnabled(False))
         self.stop_acq.clicked.connect(lambda: self.cam.stop_acquisition())
         self.stop_acq.clicked.connect(lambda: self.status.setText("Stopped"))
+        if self.cam.is_tsi_cam:
+            self.stop_acq.clicked.connect(lambda: self.frame_rate.setEnabled(True))
+        self.stop_acq.clicked.connect(lambda: self.exp.hide())
         self.stop_acq.clicked.connect(lambda: self.fps.hide())
-        self.reset_view.clicked.connect(lambda: self.vb_image.enableAutoRange())
         self.reset_view.clicked.connect(lambda: self.vb_zoom.enableAutoRange())
         self.reset_view.clicked.connect(lambda: self.vb_residuals.enableAutoRange())
         # connect after finding params so we don't send accidental update
         self.exposure.valueChanged.connect(self.exposure_cb)
+        if self.cam.is_tsi_cam:
+            self.frame_rate.valueChanged.connect(self.frame_rate_cb)
         self.save.clicked.connect(self.save_cb)
         self.load.clicked.connect(self.load_cb)
         self.mark.clicked.connect(self.mark_cb)
@@ -477,6 +505,12 @@ class BeamDisplay(QtWidgets.QMainWindow):
         self.exposure = QtGui.QDoubleSpinBox()
         self.exposure.setSuffix(" ms")
         self.get_exposure_params()
+
+        if self.cam.is_tsi_cam:
+            self.frame_rate_label = QtGui.QLabel("Frame Rate:")
+            self.frame_rate = QtGui.QDoubleSpinBox()
+            self.frame_rate.setSuffix(" fps")
+            self.get_frame_rate_params()
 
         self.reset_view = QtGui.QPushButton("Reset View")
         self.save = QtGui.QPushButton("Save Frame")
@@ -510,6 +544,7 @@ class BeamDisplay(QtWidgets.QMainWindow):
             # self.x_delta, self.y_delta,
         ])
 
+        self.exp = QtGui.QLabel()
         self.fps = QtGui.QLabel()
         self.message = QtGui.QLabel()
         self.status = QtGui.QLabel("Stopped")
@@ -629,12 +664,16 @@ class BeamDisplay(QtWidgets.QMainWindow):
         self.info_pane_layout.addWidget(self.stop_acq)
         self.info_pane_layout.addWidget(self.exposure_label)
         self.info_pane_layout.addWidget(self.exposure)
+        if self.cam.is_tsi_cam:
+            self.info_pane_layout.addWidget(self.frame_rate_label)
+            self.info_pane_layout.addWidget(self.frame_rate)
         self.info_pane_layout.addWidget(self.reset_view)
         self.info_pane_layout.addWidget(self.save)
         self.info_pane_layout.addWidget(self.load)
         self.info_pane_layout.addStretch(1)
         self.info_pane_layout.addWidget(self.param_widget)
         self.info_pane_layout.addStretch(3)
+        self.info_pane_layout.addWidget(self.exp)
         self.info_pane_layout.addWidget(self.fps)
         self.info_pane_layout.addWidget(self.message)
         self.info_pane_layout.addWidget(self.status)

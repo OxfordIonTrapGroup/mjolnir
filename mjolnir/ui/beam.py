@@ -64,13 +64,14 @@ class BeamDisplay(QtWidgets.QMainWindow):
     @QtCore.pyqtSlot()
     def update(self):
         def finish():
-            self._exp, self._exp_min, self._exp_max, self._exp_inc = self.cam.get_exposure_params()
-            self.exp.setText("Exposure: {:.3f} ms".format(self._exp))
-            self._last_update, self._fps = tools.update_rate(
-                self._last_update, self._fps)
-            self.fps.setText("Frame rate: {:.1f} fps".format(self._fps))
-            self.exp.show()
-            self.fps.show()
+            if not self.cam._is_single_or_stop:
+                self._exp, self._exp_min, self._exp_max, self._exp_inc = self.cam.get_exposure_params()
+                self.exp.setText("Exposure: {:.2f} ms".format(self._exp))
+                self._last_update, self._fps = tools.update_rate(
+                    self._last_update, self._fps)
+                self.fps.setText("Frame rate: {:.1f} fps".format(self._fps))
+                self.exp.show()
+                self.fps.show()
         try:
             up = self.updateq.popleft()
         except IndexError:
@@ -165,6 +166,17 @@ class BeamDisplay(QtWidgets.QMainWindow):
             return
         self.replot_history()
 
+    def wait(self):
+        """Temporarily disable acquisition buttons and sleep until single frame acquired."""
+        fps = self._frame_rate_control
+        self.single_acq.setEnabled(False)
+        self.start_acq.setEnabled(False)
+        self.stop_acq.setEnabled(False)
+        time.sleep(1/fps)
+        self.single_acq.setEnabled(True)
+        self.start_acq.setEnabled(True)
+        self.stop_acq.setEnabled(True)
+
     def get_exposure_params(self):
         val, min_, max_, step = self.cam.get_exposure_params()
         self.exposure.setRange(min_, max_)
@@ -180,11 +192,13 @@ class BeamDisplay(QtWidgets.QMainWindow):
         self.frame_rate.setRange(min_,max_)
         self.frame_rate.setSingleStep(step)
         self.frame_rate.setValue(val)
+        self._frame_rate_control = val
 
     def frame_rate_cb(self):
         fps = self.frame_rate.value()
         self.cam.set_frame_rate(fps)
         self.get_exposure_params()
+        self._frame_rate_control = fps
 
     def save_cb(self):
         '''Saves the current frame. Specifically, it pickles the self._up dictionary.
@@ -195,6 +209,7 @@ class BeamDisplay(QtWidgets.QMainWindow):
             self.cam.stop_acquisition()
             self.status.setText("Stopped: Save Frame")
             self.fps.hide()
+            self.exp.hide()
             
             # Crude test for save error
             error_test = self._up['semimaj']
@@ -223,6 +238,7 @@ class BeamDisplay(QtWidgets.QMainWindow):
             self.cam.stop_acquisition()
             self.status.setText("Stopped: Load Frame")
             self.fps.hide()
+            self.exp.hide()
             
             name, _filters = QtGui.QFileDialog.getOpenFileName(self, "Load Frame", "",
                                                                "Pickle (*.pickle)")
@@ -237,7 +253,7 @@ class BeamDisplay(QtWidgets.QMainWindow):
 
             def finish():
                 self._exp, self._exp_min, self._exp_max, self._exp_inc = self.cam.get_exposure_params()
-                self.exp.setText("Exposure: {:.3f} ms".format(self._exp))
+                self.exp.setText("Exposure: {:.2f} ms".format(self._exp))
                 self._last_update, self._fps = tools.update_rate(
                     self._last_update, self._fps)
                 self.fps.setText("{:.1f} fps".format(self._fps))
@@ -469,6 +485,11 @@ class BeamDisplay(QtWidgets.QMainWindow):
         """Connect triggers to their actions"""
         self.single_acq.clicked.connect(lambda: self.cam.single_acquisition())
         self.single_acq.clicked.connect(lambda: self.status.setText("Single"))
+        self.single_acq.clicked.connect(lambda: self.exp.hide())
+        self.single_acq.clicked.connect(lambda: self.fps.hide())
+        if self.cam.is_tsi_cam:
+            self.single_acq.clicked.connect(lambda: self.wait())
+            self.single_acq.clicked.connect(lambda: self.frame_rate.setEnabled(True))
         self.start_acq.clicked.connect(lambda: self.cam.start_acquisition())
         self.start_acq.clicked.connect(lambda: self.status.setText("Started"))
         if self.cam.is_tsi_cam:

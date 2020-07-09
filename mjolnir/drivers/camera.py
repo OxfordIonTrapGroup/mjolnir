@@ -223,9 +223,15 @@ class Camera:
             self.register_callback(acquire_single_cb)
 
         if self.is_tsi_cam:
-            self.c_tsi.arm_and_trigger() # arm and trigger tsi camera
+            if not self.c_tsi.get_is_armed():
+                self.c_tsi.arm_and_trigger() # arm and trigger tsi camera
 
         self.acquisition_enabled = True
+
+        if single:
+            self._is_single_or_stop = True
+        else:
+            self._is_single_or_stop = False
 
     def single_acquisition(self):
         self.start_acquisition(single=True)
@@ -233,9 +239,10 @@ class Camera:
     def stop_acquisition(self):
         """Turn off auto acquire"""
         self.acquisition_enabled = False
-        time.sleep(1.) # give the acquisition thread time to finish acquiring last image before disarming
+        self._is_single_or_stop = True
         if self.is_tsi_cam:
             self.c_tsi.disarm() # disarm tsi camera
+            self.c_tsi.disarm() # clear queue
 
     def get_serial_no(self):
         """Return camera serial number"""
@@ -255,8 +262,8 @@ class Camera:
         return cam_info
 
     def get_pixel_width(self):
+        """Returns pixel width in microns."""
         return self.c_tsi.get_pixel_width()
-    
 
     def _set_pixel_clock(self, clock=20):
         """If connected camera is uc480, set the pixel clock in MHz. Defaults to 20MHz.

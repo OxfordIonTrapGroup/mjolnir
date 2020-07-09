@@ -196,6 +196,11 @@ class tsi:
         """
         self.camera.disarm()
 
+    def get_is_armed(self):
+        """Returns True if the camera is armed, False if not.
+        """
+        return self.camera.is_armed
+
     def acquire(self, N=1, native=False):
         """Synchronously captures some frames from the camera using the current settings and returns the averaged image.
 

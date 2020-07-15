@@ -80,7 +80,7 @@ class Worker(QtCore.QObject):
 
         # Need to correct centre for downsampling
         zoom_centre = (p['pxc'] - px_crop[:,0,0]) / dwnsmp + [0.5, 0.5]
-        zoom_centre = QtCore.QPointF(*zoom_centre)
+        #zoom_centre = QtCore.QPointF(*zoom_centre)
 
         im_fit = GaussianBeam.f(px_crop, p)
 

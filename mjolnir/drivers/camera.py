@@ -157,7 +157,10 @@ class Camera:
         self._get_aoi_absolute()
         if not self.is_tsi_cam:
             self._set_pixel_clock()
+        self.get_serial_no()
 
+        self._is_single_or_stop = True
+        self.stopped = True
         self.connected = True
 
     def _disconnect(self):
@@ -171,7 +174,7 @@ class Camera:
         self._disconnect()
         self._library_cleanup()
         self._library_init()
-        self._connect()
+        self._connect(self._serial_no)
 
     def _get_n_cameras(self):
         """Returns the number of cameras connected to the system"""
@@ -188,11 +191,11 @@ class Camera:
                         im = timeout(1)(self.c.acquire)(native=True)
                         im = np.transpose(im)
                     else:
-                        im = timeout(1)(self.c_tsi.acquire)(native=True)
+                        im = (self.c_tsi.acquire)(native=True)
                         im = np.transpose(im)
                     # from here on in, the first axis of im is the x axis
                     # print("acquired!", flush=True)
-                except (MyTimeoutError, uc480.uc480Error) as e:
+                except (MyTimeoutError, uc480.uc480Error, AttributeError) as e:
                     logger.exception("Exception occurred, reconnecting")
                     self._reconnect()
                 else:
@@ -214,6 +217,7 @@ class Camera:
 
     def start_acquisition(self, single=False):
         """Turn on auto acquire"""
+        self.stopped = False
         def acquire_single_cb(_):
             """image is passed to callback and not used"""
             self.stop_acquisition()
@@ -234,6 +238,9 @@ class Camera:
             self._is_single_or_stop = False
 
     def single_acquisition(self):
+        if self._is_single_or_stop & self.is_tsi_cam:
+            self.c_tsi.disarm() # clear remaining queue
+                
         self.start_acquisition(single=True)
 
     def stop_acquisition(self):
@@ -241,8 +248,8 @@ class Camera:
         self.acquisition_enabled = False
         self._is_single_or_stop = True
         if self.is_tsi_cam:
-            self.c_tsi.disarm() # disarm tsi camera
-            self.c_tsi.disarm() # clear queue
+            self.c_tsi.disarm() # disarm camera
+        self.stopped = True
 
     def get_serial_no(self):
         """Return camera serial number"""
@@ -268,13 +275,29 @@ class Camera:
     def _set_pixel_clock(self, clock=20):
         """If connected camera is uc480, set the pixel clock in MHz. Defaults to 20MHz.
 
-        High values of the pixel clock (>40MHz) can cause errors.
+        High values of the pixel clock (>20MHz) can cause errors.
         """
         self.c.call("is_PixelClock", self.c._camID, uc480.IS_PIXELCLOCK_CMD_SET,
             ctypes.pointer(ctypes.c_int(clock)), ctypes.sizeof(ctypes.c_int))
+        self.pixel_clock = clock
+
+    def set_pixel_clock(self, clock):
+        """Set pixel clock in MHz."""
+        self._set_pixel_clock(int(clock))
+
+    def _get_pixel_clock_params(self):
+        """Get the pixel clock limits. These are set to the largest range that avoids errors."""
+        self.pixel_clock_min = 5
+        self.pixel_clock_max = 20
+        self.pixel_clock_inc = 1
+
+    def get_pixel_clock_params(self):
+        """Get pixel clock limits (min, max, increment)."""
+        self._get_pixel_clock_params()
+        return self.pixel_clock, self.pixel_clock_min, self.pixel_clock_max, self.pixel_clock_inc
 
     def _get_frame_rate_params(self):
-        """If connected camera is tsi, get the frame rate limits."""
+        """Get the frame rate limits."""
         self.frame_rate = self.c_tsi.get_frame_rate()
         self.frame_rate_min, self.frame_rate_max, \
             self.frame_rate_inc =  self.c_tsi.get_frame_rate_limits()
@@ -285,7 +308,7 @@ class Camera:
         return self.frame_rate, self.frame_rate_min, self.frame_rate_max, self.frame_rate_inc
     
     def set_frame_rate(self, frame_rate):
-        """If connected camera is tsi, set the frame rate in fps."""
+        """Set the frame rate in fps."""
         self.c_tsi.set_frame_rate(frame_rate)
         self.frame_rate = frame_rate
 

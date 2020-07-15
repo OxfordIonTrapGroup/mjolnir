@@ -33,6 +33,7 @@ class tsi:
         logger.debug("Configure system path..")
         
         is_64bits = sys.maxsize > 2**32
+        # change the value below to define dll system path
         path_to_dlls = r"C:\Program Files\Thorlabs\Scientific Imaging\Scientific Camera Support\Scientific_Camera_Interfaces-Rev_G\Scientific Camera Interfaces\SDK\Python Compact Scientific Camera Toolkit\dlls"
 
         if is_64bits:
@@ -71,7 +72,6 @@ class tsi:
 
         self.camera.operation_mode = 0 # software-triggered
         self.camera.frames_per_trigger_zero_for_unlimited = 0  # start camera in continuous mode
-        self.camera.image_poll_timeout_ms = 1000  # 1 second polling timeout
         self.camera.is_frame_rate_control_enabled = True # enable frame rate control
 
         self.fpsmin = self.camera.frame_rate_control_value_range.min # min fps
@@ -82,6 +82,8 @@ class tsi:
         self.expmax = self.camera.exposure_time_range_us.max / 1000. # exposure max in ms
         logger.info(("Valid exposure times: %fms to %fms" % (self.expmin, self.expmax)))
         self.set_exposure(self.expmin) # set exposure to min value
+
+        self.camera.image_poll_timeout_ms = 30000  # 30 second polling timeout
         
     def disconnect(self):
         """Disconnect a currently connected camera.
@@ -112,10 +114,10 @@ class tsi:
         return self.camera.image_width_pixels, self.camera.image_height_pixels
 
     def get_frame_rate_limits(self):
-        """Returns the frame rate limits (min=3, max, increment=1).
-        Minimum set at 2fps to avoid timeout errors.
+        """Returns the frame rate limits (min=5, max, increment=1).
+        Minimum set at 5fps to avoid image acquisition errors.
         """
-        return 3., self.camera.frame_rate_control_value_range.max, 1.
+        return self.camera.frame_rate_control_value_range.min + 0.01, self.camera.frame_rate_control_value_range.max, 1.
 
     def set_frame_rate(self, frame_rate):
         """Set the frame rate.
@@ -173,7 +175,13 @@ class tsi:
     def get_exposure_limits(self):
         """Returns the supported limits for the exposure time in ms (min, max, increment).
         """
-        return self.expmin, self.expmax, 0.9/self.camera.frame_rate_control_value
+        _min = self.camera.exposure_time_range_us.min / 1000. # exposure min in ms
+        _max = self.camera.exposure_time_range_us.max / 1000. # exposure max in ms
+        if self.camera.usb_port_type == 2:
+            inc = 1000 / (1125 * self.camera.frame_rate_control_value) # exposure step size for usb3.0
+        else:
+            inc = 1000 / (582 * self.camera.frame_rate_control_value) # exposure step size for usb2.0
+        return _min, _max, inc
 
     def set_roi(self, posx, posy, width, height):
         """Set the ROI.

@@ -72,6 +72,12 @@ class BeamDisplay(QtWidgets.QMainWindow):
                 self.fps.setText("{:.2f} fps".format(self._fps))
                 self.exp.show()
                 self.fps.show()
+                # fps adjustment within the acquisition thread in camera.py
+                if self.cam.is_tsi_cam:
+                    if self._fps < self._frame_rate_control:
+                        self.cam.fps_adjustment -= 0.01
+                    elif self._fps > self._frame_rate_control:
+                        self.cam.fps_adjustment += 0.01
             else:
                 self.single_acq.setEnabled(True)
         try:
@@ -236,7 +242,6 @@ class BeamDisplay(QtWidgets.QMainWindow):
     def frame_rate_cb(self):
         fps = self.frame_rate.value()
         self.cam.set_frame_rate(fps)
-        self.get_exposure_params()
         self._frame_rate_control = fps
 
     def get_pixel_clock_params(self):
@@ -253,7 +258,7 @@ class BeamDisplay(QtWidgets.QMainWindow):
         self._pixel_clock_val = clock_val
 
     def save_cb(self):
-        '''Saves the current frame. Specifically, it pickles the self._up dictionary.
+        '''Saves the current frame. The function pickles the self._up dictionary.
         Any ongoing acquisition is halted.
         Raises an error if there is no data available in the current frame.'''
         
@@ -278,7 +283,7 @@ class BeamDisplay(QtWidgets.QMainWindow):
             msg.exec()
 
     def load_cb(self):
-        '''Loads a saved frame. Specifically, it unpickles a dictionary from save_cb.
+        '''Loads a saved frame. The function unpickles a dictionary that was previously pickled via save_cb.
         Any ongoing acquisition is halted.
         Once the dictionary is unpickled, the function assigns the proper variables to display the frame.
         The assignment code is copied from update().
@@ -387,6 +392,7 @@ class BeamDisplay(QtWidgets.QMainWindow):
             msg.exec()
     
     def reset_view_cb(self):
+        self.vb_image.autoRange()
         self.vb_zoom.autoRange()
         self.vb_residuals.autoRange()
         
@@ -574,7 +580,7 @@ class BeamDisplay(QtWidgets.QMainWindow):
         self.get_exposure_params()
 
         if self.cam.is_tsi_cam:
-            self.frame_rate_label = QtGui.QLabel("Frame rate:")
+            self.frame_rate_label = QtGui.QLabel("Target frame rate:")
             self.frame_rate = QtGui.QDoubleSpinBox()
             self.frame_rate.setSuffix(" fps")
             self.get_frame_rate_params()
@@ -845,7 +851,7 @@ class BeamDisplay(QtWidgets.QMainWindow):
         self.vb_zoom.setRange(QtCore.QRectF(0, 0, 50, 50))
         self.vb_residuals.setRange(QtCore.QRectF(0, 0, 50, 50))
 
-        # Fit to viewboxes on startup
+        # Fit to viewboxes on first acquisition
         self.vb_zoom.enableAutoRange()
         self.vb_residuals.enableAutoRange()
 

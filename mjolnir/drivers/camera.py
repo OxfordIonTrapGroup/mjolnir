@@ -23,12 +23,14 @@ auto_exposure_min_threshold = 150
 
 def list_serial_numbers():
     """Find USB connected cameras"""
+    # Find uc480 cameras
     lib = uc480.uc480()
     lib.get_cameras()
     cameras = [lib._cam_list.uci[i] for i in range(lib._cam_list.dwCount)]
     serials = [cam.SerNo.decode() for cam in cameras]
     del lib
-
+    
+    # Find tsi cameras
     tsi_lib = tsi.tsi()
     tsi_lib.get_cameras()
     tsi_serials = tsi_lib._cam_list
@@ -100,6 +102,8 @@ class Camera:
         self.exposure_max = None
         self.exposure_inc = None
 
+        self.frame_rate = 3.0 # set initial frame rate to 3fps
+
         self._frame_buffer = collections.deque([], framebuffer_len)
         self._frame_call_list = []
 
@@ -135,7 +139,7 @@ class Camera:
                     raise ValueError(
                         "Multiple substring matches for {}".format(sn))
                 id_ = camera.dwDeviceID
-                self.is_tsi_cam = False
+                self.is_tsi_cam = False # camera is not tsi
         for i in range(len(self.c_tsi._cam_list)):
             camera = self.c_tsi._cam_list[i]
             serial_no = camera
@@ -144,7 +148,7 @@ class Camera:
                     raise ValueError(
                         "Multiple substring matches for {}".format(sn))
                 id_ = camera
-                self.is_tsi_cam = True
+                self.is_tsi_cam = True # camera is tsi
         if sn is not None and id_ == 0:
             raise ValueError("Camera {} not found".format(sn))
         if not self.is_tsi_cam:
@@ -159,9 +163,9 @@ class Camera:
             self._set_pixel_clock()
         self.get_serial_no()
 
-        self._is_single_or_stop = True
-        self.stopped = True
-        self.connected = True
+        self.connected = True # a camera is connected
+        self._is_single_or_stop = True # acquistion is either single or stopped
+        self.stopped = True # acquisition is stopped
 
     def _disconnect(self):
         if not self.is_tsi_cam:
@@ -177,7 +181,7 @@ class Camera:
         self._connect(self._serial_no)
 
     def _get_n_cameras(self):
-        """Returns the number of cameras connected to the system"""
+        """Returns the number of uc480 cameras connected to the system"""
         n_cams = ctypes.c_int()
         self.c.call("is_GetNumberOfCameras", ctypes.pointer(n_cams))
         return n_cams.value
@@ -191,8 +195,11 @@ class Camera:
                         im = timeout(1)(self.c.acquire)(native=True)
                         im = np.transpose(im)
                     else:
-                        im = (self.c_tsi.acquire)(native=True)
+                        im = timeout(5)(self.c_tsi.acquire)(native=True)
                         im = np.transpose(im)
+                        # adjust fps to match the desired value
+                        if self.fps_adjustment > 0:
+                            time.sleep(self.fps_adjustment)
                     # from here on in, the first axis of im is the x axis
                     # print("acquired!", flush=True)
                 except (MyTimeoutError, uc480.uc480Error, AttributeError) as e:
@@ -213,6 +220,7 @@ class Camera:
             # print("sleeping", flush=True)
             time.sleep(self._POLL_PERIOD)
             # print("slept", flush=True)
+                
         self.dead = True
 
     def start_acquisition(self, single=False):
@@ -226,9 +234,7 @@ class Camera:
         if single:
             self.register_callback(acquire_single_cb)
 
-        if self.is_tsi_cam:
-            if not self.c_tsi.get_is_armed():
-                self.c_tsi.arm_and_trigger() # arm and trigger tsi camera
+        self.fps_adjustment = 0 # initialize fps adjustment value
 
         self.acquisition_enabled = True
 
@@ -238,17 +244,12 @@ class Camera:
             self._is_single_or_stop = False
 
     def single_acquisition(self):
-        if self._is_single_or_stop & self.is_tsi_cam:
-            self.c_tsi.disarm() # clear remaining queue
-                
         self.start_acquisition(single=True)
 
     def stop_acquisition(self):
         """Turn off auto acquire"""
         self.acquisition_enabled = False
         self._is_single_or_stop = True
-        if self.is_tsi_cam:
-            self.c_tsi.disarm() # disarm camera
         self.stopped = True
 
     def get_serial_no(self):
@@ -269,7 +270,7 @@ class Camera:
         return cam_info
 
     def get_pixel_width(self):
-        """Returns pixel width in microns."""
+        """Returns pixel width in microns. Only applicable to tsi cameras."""
         return self.c_tsi.get_pixel_width()
 
     def _set_pixel_clock(self, clock=20):
@@ -298,7 +299,6 @@ class Camera:
 
     def _get_frame_rate_params(self):
         """Get the frame rate limits."""
-        self.frame_rate = self.c_tsi.get_frame_rate()
         self.frame_rate_min, self.frame_rate_max, \
             self.frame_rate_inc =  self.c_tsi.get_frame_rate_limits()
 
@@ -309,7 +309,6 @@ class Camera:
     
     def set_frame_rate(self, frame_rate):
         """Set the frame rate in fps."""
-        self.c_tsi.set_frame_rate(frame_rate)
         self.frame_rate = frame_rate
 
     def _get_exposure_params(self):

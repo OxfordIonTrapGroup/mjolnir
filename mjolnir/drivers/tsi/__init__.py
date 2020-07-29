@@ -12,7 +12,8 @@ class tsi:
     def __init__(self):
         """Constructor.
 
-        Takes no arguments but tries to automatically configure the system path and creates a list of all connected cameras.
+        Takes no arguments but tries to automatically configure the system path and
+        creates a list of all connected cameras.
         """
         self._cam_list = []
         self._sn = None
@@ -33,8 +34,11 @@ class tsi:
         logger.debug("Configure system path..")
         
         is_64bits = sys.maxsize > 2**32
+        
         # change the value below to define dll system path
-        path_to_dlls = r"C:\Program Files\Thorlabs\Scientific Imaging\Scientific Camera Support\Scientific_Camera_Interfaces-Rev_G\Scientific Camera Interfaces\SDK\Python Compact Scientific Camera Toolkit\dlls"
+        path_to_dlls = r"C:\Program Files\Thorlabs\Scientific Imaging\Scientific Camera Support"\
+                       "\Scientific_Camera_Interfaces-Rev_G\Scientific Camera Interfaces\SDK"\
+                       "\Python Compact Scientific Camera Toolkit\dlls"
 
         if is_64bits:
             path_to_dlls += r"\64_lib"
@@ -68,26 +72,29 @@ class tsi:
         self._sheight = self.camera.sensor_height_pixels
         self._rgb = (self.camera.camera_sensor_type == 1)
         self._bitsperpixel = self.camera.bit_depth
-        logger.info(("Sensor: %d x %d pixels, RGB = %d, %d bits/px" % (self._swidth, self._sheight, self._rgb, self._bitsperpixel)))
+        logger.info(("Sensor: %d x %d pixels, RGB = %d, %d bits/px" %
+                     (self._swidth, self._sheight, self._rgb, self._bitsperpixel)))
 
         self.camera.operation_mode = 0 # software-triggered
-        self.camera.frames_per_trigger_zero_for_unlimited = 0  # start camera in continuous mode
-        self.camera.is_frame_rate_control_enabled = True # enable frame rate control
+        self.camera.frames_per_trigger_zero_for_unlimited = 1  # single frame per trigger
+        self.camera.is_frame_rate_control_enabled = False # disable frame rate control
 
         self.fpsmin = self.camera.frame_rate_control_value_range.min # min fps
         self.fpsmax = self.camera.frame_rate_control_value_range.max # max fps
-        self.set_frame_rate(self.fpsmax) # set frame rate to max fps
 
         self.expmin = self.camera.exposure_time_range_us.min / 1000. # exposure min in ms
         self.expmax = self.camera.exposure_time_range_us.max / 1000. # exposure max in ms
         logger.info(("Valid exposure times: %fms to %fms" % (self.expmin, self.expmax)))
         self.set_exposure(self.expmin) # set exposure to min value
 
-        self.camera.image_poll_timeout_ms = 30000  # 30 second polling timeout
+        self.camera.image_poll_timeout_ms = 10000  # 10 second polling timeout
+
+        self.camera.arm(2) # arm the camera with a two-frame buffer
         
     def disconnect(self):
         """Disconnect a currently connected camera.
         """
+        self.camera.disarm()
         self.camera.dispose()
         self.sdk.dispose()
     
@@ -112,25 +119,12 @@ class tsi:
         """Returns the image size in pixels as a tuple: (width, height)
         """
         return self.camera.image_width_pixels, self.camera.image_height_pixels
-
+    
     def get_frame_rate_limits(self):
-        """Returns the frame rate limits (min=5, max, increment=1).
-        Minimum set at 5fps to avoid image acquisition errors.
+        """Returns the frame rate limits in fps (min, max, increment=0.1).
         """
-        return self.camera.frame_rate_control_value_range.min + 0.01, self.camera.frame_rate_control_value_range.max, 1.
-
-    def set_frame_rate(self, frame_rate):
-        """Set the frame rate.
-
-        :param int frame_rate: New frame rate setting.
-        """
-        self.camera.frame_rate_control_value = frame_rate
-
-    def get_frame_rate(self):
-        """Get the frame rate.
-        """
-        return self.camera.frame_rate_control_value
-
+        return self.camera.frame_rate_control_value_range.min, self.camera.frame_rate_control_value_range.max, 0.1
+    
     def set_gain(self, gain):
         """Set the hardware gain.
 
@@ -144,7 +138,7 @@ class tsi:
         return self.camera.gain
 
     def get_gain_limits(self):
-        """Returns gain limits (min, max, increment).
+        """Returns gain limits (min, max, increment=1).
         """
         return self.camera.gain_range.min, self.camera.gain_range.max, 1
     
@@ -177,10 +171,12 @@ class tsi:
         """
         _min = self.camera.exposure_time_range_us.min / 1000. # exposure min in ms
         _max = self.camera.exposure_time_range_us.max / 1000. # exposure max in ms
+        
         if self.camera.usb_port_type == 2:
-            inc = 1000 / (1125 * self.camera.frame_rate_control_value) # exposure step size for usb3.0
+            inc = 1000 / (1125 * self.camera.frame_rate_control_value_range.max) # exposure step size for usb3.0
         else:
-            inc = 1000 / (582 * self.camera.frame_rate_control_value) # exposure step size for usb2.0
+            inc = 1000 / (582 * self.camera.frame_rate_control_value_range.max) # exposure step size for usb2.0
+        
         return _min, _max, inc
 
     def set_roi(self, posx, posy, width, height):
@@ -193,11 +189,15 @@ class tsi:
         """
         return self.camera.roi
 
-    def arm_and_trigger(self):
-        """Arms the camera and issues a software trigger.
+    def arm(self, N=2):
+        """Arms the camera with an N-frame buffer.
         """
-        self.camera.arm(2) # arm camera with 2-frame buffer
-        self.camera.issue_software_trigger() # trigger camera
+        self.camera.arm(N)
+
+    def trigger(self):
+        """Issues a software trigger.
+        """
+        self.camera.issue_software_trigger()
 
     def disarm(self):
         """Disarms the camera.
@@ -205,20 +205,21 @@ class tsi:
         self.camera.disarm()
 
     def get_is_armed(self):
-        """Returns True if the camera is armed, False if not.
+        """Returns True if the camera is armed, False if unarmed.
         """
         return self.camera.is_armed
 
     def acquire(self, N=1, native=False):
         """Synchronously captures some frames from the camera using the current settings and returns the averaged image.
 
-        :param int N: Number of frames to acquire (> 1).
+        :param int N: Number of frames to acquire (>= 1).
         :returns: Averaged image.
         """
         logger.debug(("acquire %d frames" % N))
         data = None
         
         for i in range(int(N)):
+            self.camera.issue_software_trigger()
             logger.debug("  wait for data..")
             frame = self.camera.get_pending_frame_or_null()
             self._image = frame.image_buffer

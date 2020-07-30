@@ -261,7 +261,7 @@ class uc480:
 
         .. versionadded:: 01-07-2016
         """
-        return self._swith, self._sheight
+        return self._swidth, self._sheight
 
 
     # set hardware gain (0..100)

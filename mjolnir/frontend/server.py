@@ -4,8 +4,8 @@ import sys
 import time
 import zmq
 
-from artiq.protocols.pc_rpc import simple_server_loop
-from artiq.tools import simple_network_args, init_logger
+from sipyco.pc_rpc import simple_server_loop
+from sipyco import simple_network_args, init_logger
 from mjolnir.drivers.camera import Camera, list_serial_numbers
 
 # Copy pasted from oxart, since that isn't publicly available

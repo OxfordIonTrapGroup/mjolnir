@@ -5,7 +5,7 @@ import argparse
 import atexit
 import logging
 from PyQt5 import QtWidgets, QtCore
-from artiq.protocols.pc_rpc import Client
+from sipyco.pc_rpc import Client
 
 from mjolnir.ui.beam import BeamDisplay
 from mjolnir.drivers.camera import Camera, list_serial_numbers

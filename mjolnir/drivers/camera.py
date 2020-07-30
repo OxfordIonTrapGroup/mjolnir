@@ -1,4 +1,5 @@
 from . import uc480
+from . import tsi
 import numpy as np
 import ctypes
 import collections
@@ -22,11 +23,20 @@ auto_exposure_min_threshold = 150
 
 def list_serial_numbers():
     """Find USB connected cameras"""
+    # Find uc480 cameras
     lib = uc480.uc480()
     lib.get_cameras()
     cameras = [lib._cam_list.uci[i] for i in range(lib._cam_list.dwCount)]
     serials = [cam.SerNo.decode() for cam in cameras]
     del lib
+    
+    # Find tsi cameras
+    tsi_lib = tsi.tsi()
+    tsi_lib.get_cameras()
+    tsi_serials = tsi_lib._cam_list
+    serials.extend(tsi_serials)
+    del tsi_lib
+    
     return serials
 
 
@@ -92,6 +102,8 @@ class Camera:
         self.exposure_max = None
         self.exposure_inc = None
 
+        self.frame_rate = 3.0 # set initial frame rate to 3fps
+
         self._frame_buffer = collections.deque([], framebuffer_len)
         self._frame_call_list = []
 
@@ -109,10 +121,12 @@ class Camera:
 
     def _library_init(self):
         self.c = uc480.uc480()
+        self.c_tsi = tsi.tsi()
 
     def _library_cleanup(self):
         del self.c._lib
         del self.c
+        del self.c_tsi
 
     def _connect(self, sn=None):
         """Connect to camera"""
@@ -125,28 +139,49 @@ class Camera:
                     raise ValueError(
                         "Multiple substring matches for {}".format(sn))
                 id_ = camera.dwDeviceID
+                self.is_tsi_cam = False # camera is not tsi
+        for i in range(len(self.c_tsi._cam_list)):
+            camera = self.c_tsi._cam_list[i]
+            serial_no = camera
+            if str(sn) in serial_no:
+                if id_:
+                    raise ValueError(
+                        "Multiple substring matches for {}".format(sn))
+                id_ = camera
+                self.is_tsi_cam = True # camera is tsi
         if sn is not None and id_ == 0:
             raise ValueError("Camera {} not found".format(sn))
-        self.c.connect(id_, useDevID=True)
+        if not self.is_tsi_cam:
+            self.c.connect(id_, useDevID=True)
+        else:
+            self.c_tsi.connect(id_)
         self._get_sensor_info()
         self._get_exposure_params()
         self._get_aoi()
         self._get_aoi_absolute()
-        self._set_pixel_clock()
-        self.connected = True
+        if not self.is_tsi_cam:
+            self._set_pixel_clock()
+        self.get_serial_no()
+
+        self.connected = True # a camera is connected
+        self._is_single_or_stop = True # acquistion is either single or stopped
+        self.stopped = True # acquisition is stopped
 
     def _disconnect(self):
-        self.c.disconnect()
+        if not self.is_tsi_cam:
+            self.c.disconnect()
+        else:
+            self.c_tsi.disconnect()
         self.connected = False
 
     def _reconnect(self):
         self._disconnect()
         self._library_cleanup()
         self._library_init()
-        self._connect()
+        self._connect(self._serial_no)
 
     def _get_n_cameras(self):
-        """Returns the number of cameras connected to the system"""
+        """Returns the number of uc480 cameras connected to the system"""
         n_cams = ctypes.c_int()
         self.c.call("is_GetNumberOfCameras", ctypes.pointer(n_cams))
         return n_cams.value
@@ -156,11 +191,18 @@ class Camera:
             if self.acquisition_enabled:
                 try:
                     # print("waiting", flush=True)
-                    im = timeout(1)(self.c.acquire)(native=True)
-                    im = np.transpose(im)
+                    if not self.is_tsi_cam:
+                        im = timeout(1)(self.c.acquire)(native=True)
+                        im = np.transpose(im)
+                    else:
+                        im = timeout(5)(self.c_tsi.acquire)(native=True)
+                        im = np.transpose(im)
+                        # adjust fps to match the desired value
+                        if self.fps_adjustment > 0:
+                            time.sleep(self.fps_adjustment)
                     # from here on in, the first axis of im is the x axis
                     # print("acquired!", flush=True)
-                except (MyTimeoutError, uc480.uc480Error) as e:
+                except (MyTimeoutError, uc480.uc480Error, AttributeError) as e:
                     logger.exception("Exception occurred, reconnecting")
                     self._reconnect()
                 else:
@@ -178,10 +220,12 @@ class Camera:
             # print("sleeping", flush=True)
             time.sleep(self._POLL_PERIOD)
             # print("slept", flush=True)
+                
         self.dead = True
 
     def start_acquisition(self, single=False):
         """Turn on auto acquire"""
+        self.stopped = False
         def acquire_single_cb(_):
             """image is passed to callback and not used"""
             self.stop_acquisition()
@@ -189,7 +233,15 @@ class Camera:
 
         if single:
             self.register_callback(acquire_single_cb)
+
+        self.fps_adjustment = 0 # initialize fps adjustment value
+
         self.acquisition_enabled = True
+
+        if single:
+            self._is_single_or_stop = True
+        else:
+            self._is_single_or_stop = False
 
     def single_acquisition(self):
         self.start_acquisition(single=True)
@@ -197,30 +249,77 @@ class Camera:
     def stop_acquisition(self):
         """Turn off auto acquire"""
         self.acquisition_enabled = False
+        self._is_single_or_stop = True
+        self.stopped = True
 
     def get_serial_no(self):
         """Return camera serial number"""
         info = self._get_cam_info()
-        self._serial_no = info.SerNo.decode()
+        if not self.is_tsi_cam:
+            self._serial_no = info.SerNo.decode()
+        else:
+            self._serial_no = info["SerNo"]
         return self._serial_no
 
     def _get_cam_info(self):
-        cam_info = uc480.CAMINFO()
-        self.c.call("is_GetCameraInfo", self.c._camID, ctypes.pointer(cam_info))
+        if not self.is_tsi_cam:
+            cam_info = uc480.CAMINFO()
+            self.c.call("is_GetCameraInfo", self.c._camID, ctypes.pointer(cam_info))
+        else:
+            cam_info = {"SerNo": self.c_tsi._sn, "Model": self.c_tsi._model}
         return cam_info
 
-    def _set_pixel_clock(self, clock=10):
-        """Set the pixel clock in MHz, defaults to 10MHz
+    def get_pixel_width(self):
+        """Returns pixel width in microns. Only applicable to tsi cameras."""
+        return self.c_tsi.get_pixel_width()
 
-        High values of the pixel clock (>40MHz) can cause errors.
+    def _set_pixel_clock(self, clock=20):
+        """If connected camera is uc480, set the pixel clock in MHz. Defaults to 20MHz.
+
+        High values of the pixel clock (>20MHz) can cause errors.
         """
         self.c.call("is_PixelClock", self.c._camID, uc480.IS_PIXELCLOCK_CMD_SET,
             ctypes.pointer(ctypes.c_int(clock)), ctypes.sizeof(ctypes.c_int))
+        self.pixel_clock = clock
+
+    def set_pixel_clock(self, clock):
+        """Set pixel clock in MHz."""
+        self._set_pixel_clock(int(clock))
+
+    def _get_pixel_clock_params(self):
+        """Get the pixel clock limits. These are set to the largest range that avoids errors."""
+        self.pixel_clock_min = 5
+        self.pixel_clock_max = 20
+        self.pixel_clock_inc = 1
+
+    def get_pixel_clock_params(self):
+        """Get pixel clock limits (min, max, increment)."""
+        self._get_pixel_clock_params()
+        return self.pixel_clock, self.pixel_clock_min, self.pixel_clock_max, self.pixel_clock_inc
+
+    def _get_frame_rate_params(self):
+        """Get the frame rate limits."""
+        self.frame_rate_min, self.frame_rate_max, \
+            self.frame_rate_inc =  self.c_tsi.get_frame_rate_limits()
+
+    def get_frame_rate_params(self):
+        """Return current frame rate, minimum, maximum and increment values."""
+        self._get_frame_rate_params()
+        return self.frame_rate, self.frame_rate_min, self.frame_rate_max, self.frame_rate_inc
+    
+    def set_frame_rate(self, frame_rate):
+        """Set the frame rate in fps."""
+        self.frame_rate = frame_rate
 
     def _get_exposure_params(self):
-        self.exposure = self.c.get_exposure()
-        self.exposure_min, self.exposure_max, \
-            self.exposure_inc = self.c.get_exposure_limits()
+        if not self.is_tsi_cam:
+            self.exposure = self.c.get_exposure()
+            self.exposure_min, self.exposure_max, \
+                self.exposure_inc = self.c.get_exposure_limits()
+        else:
+            self.exposure = self.c_tsi.get_exposure()
+            self.exposure_min, self.exposure_max, \
+                self.exposure_inc = self.c_tsi.get_exposure_limits()
 
     def get_exposure_params(self):
         """Return current exposure, minimum, maximum and increment values"""
@@ -234,7 +333,10 @@ class Camera:
 
     def set_exposure_ms(self, exposure_time):
         """Set the camera exposure time in ms"""
-        self.c.set_exposure(exposure_time)
+        if not self.is_tsi_cam:
+            self.c.set_exposure(exposure_time)
+        else:
+            self.c_tsi.set_exposure(exposure_time)
         self.exposure = exposure_time
 
     def set_auto_exposure(self, auto_exposure):
@@ -289,51 +391,64 @@ class Camera:
         If absolute is True, the memory location of the aoi within the image
         matches its actual position
         """
-        rectAOI = uc480.IS_RECT()
-        rectAOI.s32X = posx
-        rectAOI.s32Y = posy
-        rectAOI.s32Width = width
-        rectAOI.s32Height = height
+        if not self.is_tsi_cam:
+            rectAOI = uc480.IS_RECT()
+            rectAOI.s32X = posx
+            rectAOI.s32Y = posy
+            rectAOI.s32Width = width
+            rectAOI.s32Height = height
 
-        self.aoi_absolute = absolute
-        if self.aoi_absolute:
-            rectAOI.s32X |= uc480.IS_AOI_IMAGE_POS_ABSOLUTE
-            rectAOI.s32Y |= uc480.IS_AOI_IMAGE_POS_ABSOLUTE
+            self.aoi_absolute = absolute
+            if self.aoi_absolute:
+                rectAOI.s32X |= uc480.IS_AOI_IMAGE_POS_ABSOLUTE
+                rectAOI.s32Y |= uc480.IS_AOI_IMAGE_POS_ABSOLUTE
 
-        self.c.call("is_AOI", self.c._camID, uc480.IS_AOI_IMAGE_SET_AOI,
-            ctypes.pointer(rectAOI), ctypes.sizeof(rectAOI))
+            self.c.call("is_AOI", self.c._camID, uc480.IS_AOI_IMAGE_SET_AOI,
+                ctypes.pointer(rectAOI), ctypes.sizeof(rectAOI))
+        else:
+            self.c_tsi.set_roi(posx, posy, width, height)
 
     def _get_aoi(self):
         """Gets the aoi parameters, sets internal values and returns them"""
-        rectAOI = uc480.IS_RECT()
-        self.c.call("is_AOI", self.c._camID, uc480.IS_AOI_IMAGE_GET_AOI,
-            ctypes.pointer(rectAOI), ctypes.sizeof(rectAOI))
+        if not self.is_tsi_cam:
+            rectAOI = uc480.IS_RECT()
+            self.c.call("is_AOI", self.c._camID, uc480.IS_AOI_IMAGE_GET_AOI,
+                ctypes.pointer(rectAOI), ctypes.sizeof(rectAOI))
 
-        self.aoi_width = rectAOI.s32Width
-        self.aoi_height = rectAOI.s32Height
+            self.aoi_width = rectAOI.s32Width
+            self.aoi_height = rectAOI.s32Height
 
-        # the following is agnostic of whether the aoi mode is absolute or not
-        self.aoi_x = rectAOI.s32X & ~uc480.IS_AOI_IMAGE_POS_ABSOLUTE
-        self.aoi_y = rectAOI.s32Y & ~uc480.IS_AOI_IMAGE_POS_ABSOLUTE
+            # the following is agnostic of whether the aoi mode is absolute or not
+            self.aoi_x = rectAOI.s32X & ~uc480.IS_AOI_IMAGE_POS_ABSOLUTE
+            self.aoi_y = rectAOI.s32Y & ~uc480.IS_AOI_IMAGE_POS_ABSOLUTE
+
+        else:
+            rectAOI = self.c_tsi.get_roi()
+            self.aoi_x = rectAOI.upper_left_x_pixels
+            self.aoi_y = rectAOI.upper_left_y_pixels
+            self.aoi_width = rectAOI.lower_right_x_pixels - rectAOI.upper_left_x_pixels
+            self.aoi_height = rectAOI.lower_right_y_pixels - rectAOI.upper_left_y_pixels
 
         return self.aoi_x, self.aoi_y, self.aoi_width, self.aoi_height
 
     def _get_aoi_absolute(self):
-        x_abs = ctypes.c_int32()
-        self.c.call("is_AOI", self.c._camID, uc480.IS_AOI_IMAGE_GET_POS_X_ABS,
-            ctypes.pointer(x_abs), ctypes.sizeof(x_abs))
+        if not self.is_tsi_cam:
+            x_abs = ctypes.c_int32()
+            self.c.call("is_AOI", self.c._camID, uc480.IS_AOI_IMAGE_GET_POS_X_ABS,
+                ctypes.pointer(x_abs), ctypes.sizeof(x_abs))
 
-        y_abs = ctypes.c_int32()
-        self.c.call("is_AOI", self.c._camID, uc480.IS_AOI_IMAGE_GET_POS_Y_ABS,
-            ctypes.pointer(y_abs), ctypes.sizeof(y_abs))
-
-        truth_table = np.array([x_abs, y_abs], dtype=bool)
-        if np.all(truth_table):
-            self.aoi_absolute = True
-        elif not np.any(truth_table):
-            self.aoi_absolute = False
+            y_abs = ctypes.c_int32()
+            self.c.call("is_AOI", self.c._camID, uc480.IS_AOI_IMAGE_GET_POS_Y_ABS,
+                ctypes.pointer(y_abs), ctypes.sizeof(y_abs))
+            truth_table = np.array([x_abs, y_abs], dtype=bool)
+            if np.all(truth_table):
+                self.aoi_absolute = True
+            elif not np.any(truth_table):
+                self.aoi_absolute = False
+            else:
+                print("either both or neither axis of aoi should be absolute")
         else:
-            print("either both or neither axis of aoi should be absolute")
+            self.aoi_absolute = (self.c_tsi.get_sensor_size() == self.c_tsi.get_image_size())
         return self.aoi_absolute
 
     def _crop_to_aoi(self, image):
@@ -350,11 +465,14 @@ class Camera:
         return image[x_start:x_end, y_start:y_end]
 
     def _get_sensor_info(self):
-        pInfo = uc480.SENSORINFO()
-        self.c.call("is_GetSensorInfo", self.c._camID, ctypes.pointer(pInfo))
-        self.ccd_width = pInfo.nMaxWidth
-        self.ccd_height = pInfo.nMaxHeight
-
+        if not self.is_tsi_cam:
+            pInfo = uc480.SENSORINFO()
+            self.c.call("is_GetSensorInfo", self.c._camID, ctypes.pointer(pInfo))
+            self.ccd_width = pInfo.nMaxWidth
+            self.ccd_height = pInfo.nMaxHeight
+        else:
+            self.ccd_width, self.ccd_height = self.c_tsi.get_sensor_size()
+    
     def register_callback(self, f):
         """Register a function to be called from the acquisition thread for each
         new image"""

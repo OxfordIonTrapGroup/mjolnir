@@ -1,26 +1,47 @@
 # Mjolnir (Thor's Camera)
 
 A suite of (fairly minimal) programs to replace ThorCam, built using pyqtgraph.
-The Thorlabs cameras are just rebadged [IDS](https://en.ids-imaging.com/home.html) cameras, so IDS's software could be better, but I haven't tried it.
-The `mjolnir` GUI can connect to cameras directly via USB, or you can use the server script to send images to GUI subscribers over a local network.
 
-Mjolnir uses ARTIQ for its remote procedure calls (RPCs).
-~~Installing ARTIQ is overkill, since we only need the protocols, but it's ubiquitous in the Oxford Ion Trap Group and no minimal version is available.~~
-I need to patch in [sipyco](https://github.com/m-labs/sipyco)!
+The `mjolnir` GUI can connect to either of the following cameras:
+* C1285R12M (which Thorlabs sells as [DCC1545M](https://www.thorlabs.com/thorproduct.cfm?partnumber=DCC1545M))
+* [CS165MU1](https://www.thorlabs.com/thorproduct.cfm?partnumber=CS165MU1)
+
+You can connect directly via USB, or you can use the server script to send images to GUI subscribers over a local network.
+
+This version of Mjolnir uses [sipyco](https://github.com/m-labs/sipyco) for its remote procedure calls (RPCs).
 
 
 ## Installation
 
-The software currently uses the Thorlabs DLL (on Windows) that is installed when installing Thorcam.
-Make sure the DLL (usually located at `C:\Program Files\Thorlabs\Scientific Imaging\uc480_64.dll` for Windows 64-bit) is on your system path, otherwise ctypes won't be able to find it.
-Linux support is tenuous at best but uses libueye from [IDS](https://en.ids-imaging.com/download-ueye-lin64.html).
-
-
 Typically installation will use [conda](https://anaconda.org/) to provide a segregated python environment.
-First, follow the [instructions for installing ARTIQ](https://m-labs.hk/artiq/manual/installing.html).
+This version is compatible with Python 3.7.
+
+First, use pip to install [sipyco](https://github.com/m-labs/sipyco):
+
+`pip install git+https://github.com/m-labs/sipyco`
+
 Then use pip to install mjolnir into your environment:
 
 `pip install git+https://github.com/OxfordIonTrapGroup/mjolnir`
+
+
+### Thorlabs DCx Cameras
+
+The software currently uses the Thorlabs DLLs (on Windows) that are installed when installing Thorcam.
+
+For DCx cameras, make sure the DLL (usually located at `C:\Program Files\Thorlabs\Scientific Imaging\DCx Camera Support\USB Driver Package\uc480_64.dll` for Windows 64-bit) is on your system path, otherwise ctypes won't be able to find it.
+
+Linux support is tenuous at best but uses libueye from [IDS](https://en.ids-imaging.com/download-ueye-lin64.html).
+
+
+### Thorlabs Scientific Imaging Cameras
+
+For Thorlabs Scientific Imaging cameras, it is recommended that the user install Revision G of the Windows SDK from [Thorlabs](https://www.thorlabs.com/software_pages/ViewSoftwarePage.cfm?Code=ThorCam).
+
+After installation, move the folder to the appropriate path (usually `C:\Program Files\Thorlabs\Scientific Imaging\Scientific Camera Support` for Windows).
+Then follow the instructions in the Python README (usually located in `Scientific_Camera_Interfaces-Rev_G\Scientific Camera Interfaces`) to move the DLLs to the appropriate folder and install the Python SDK to your conda environment.
+
+**For Thorlabs Scientific Imaging cameras, the user must specify the DLL folder path within `mjolnir\drivers\tsi\__init__.py`.**
 
 
 ## Usage
@@ -65,6 +86,16 @@ The functions used for fitting in the GUI can be used standalone on any monochro
 The fit function is slow when used on large images due to the number of function evaluations - methods are provided for sensibly cropping and downsampling images such that the fit is much faster.
 
 
+## Jupyter Notebook
+
+The software has the ability to save and load individual frames.
+It accomplishes this task by using the Python's pickle module to save/load a `.pickle` file containing the dictionary object that stores all relevant image and beam data.
+
+A [Jupyter Notebook](https://github.com/OregonIons/mjolnir-frame-analyzer) was created to analyze saved frames.
+
+This Notebook simply stores the data and re-creates the images from the GUI. It's purpose is to be used as a starting point for any further analysis that the user may want to perform.
+
+
 ## Development
 
 ### Building executables
@@ -75,17 +106,6 @@ My own thoughts on this: conda itself is quite poor at keeping packages segregat
 Python 3.6 and PyInstaller 3.4 seem to play nicely together.
 The built executable should be around 80MB.
 
-Install ARTIQ, strip out all the packages we don't need, then install `mjolnir`.
-
-The only lines in `mjolnir` containing ARTIQ imports are:
-
-* `from artiq.protocols.pc_rpc import simple_server_loop`
-* `from artiq.tools import verbosity_args, simple_network_args, init_logger`
-* `from artiq.protocols.pc_rpc import Client`
-
-`artiq.protocols` is well isolated, but `artiq.tools` imports things from elsewhere in the codebase that spiral into lots of things being imported unnecessarily.
-Comment out the `is_experiment` import and any function you find it in!
-
 
 ### New features?
 
@@ -95,5 +115,6 @@ Please use the GitHub issue tracker to raise bugs/improvements.
 
 ## Acknowledgements
 
-The driver for the cameras (uc480) was taken from: <https://github.com/ddietze/pyUVVIS>.
+The driver for the Thorlabs DCx cameras (uc480) was taken from: <https://github.com/ddietze/pyUVVIS>.
 This appears to no longer be maintained.
+The driver uses the Thorlabs DLL mentioned previously.

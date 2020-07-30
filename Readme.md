@@ -29,6 +29,7 @@ The software currently uses the Thorlabs DLLs (on Windows) that are installed wh
 For Thorlabs DCx cameras, make sure the DLL (usually located at `C:\Program Files\Thorlabs\Scientific Imaging\DCx Camera Support\USB Driver Package\uc480_64.dll` for Windows 64-bit) is on your system path, otherwise ctypes won't be able to find it.
 
 For Thorlabs Scienfitic Imaging cameras, it is recommended that the user install the latest revision of the Windows SDK from [Thorlabs](https://www.thorlabs.com/software_pages/ViewSoftwarePage.cfm?Code=ThorCam).
+
 After installation, move the folder to the appropriate path (usually `C:\Program Files\Thorlabs\Scientific Imaging\Scientific Camera Support` for Windows).
 Then follow the instructions in the Python README (usually located in `Scientific_Camera_Interfaces-Rev_G\Scientific Camera Interfaces`) to move the DLLs to the appropriate folder and install the Python SDK to your conda environment.
 
@@ -83,7 +84,9 @@ The fit function is slow when used on large images due to the number of function
 
 The software has the ability to save and load individual frames.
 It accomplishes this task by using the Python's pickle module to save/load a `.pickle` file containing the dictionary object that stores all relevant image and beam data.
+
 A [Jupyter Notebook](https://github.com/OregonIons/mjolnir-frame-analyzer) was created to analyze saved frames.
+
 This Notebook simply stores the data and re-creates the images from the GUI. It's purpose is to be used as a starting point for any further analysis that the user may want to perform.
 
 

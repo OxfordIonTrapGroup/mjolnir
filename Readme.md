@@ -32,7 +32,7 @@ For Thorlabs Scienfitic Imaging cameras, it is recommended that the user install
 After installation, move the folder to the appropriate path (usually `C:\Program Files\Thorlabs\Scientific Imaging\Scientific Camera Support` for Windows).
 Then follow the instructions in the Python README (usually located in `Scientific_Camera_Interfaces-Rev_G\Scientific Camera Interfaces`) to move the DLLs to the appropriate folder and install the Python SDK to your conda environment.
 
-**For Thorlabs Scientific Imaging cameras, the user must specify the DLL folder path within mjolnir\drivers\tsi\_init_.py.**
+**For Thorlabs Scientific Imaging cameras, the user must specify the DLL folder path within `mjolnir\drivers\tsi\__init__.py`.**
 
 Linux support is tenuous at best but uses libueye from [IDS](https://en.ids-imaging.com/download-ueye-lin64.html).
 

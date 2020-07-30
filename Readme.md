@@ -79,6 +79,14 @@ The functions used for fitting in the GUI can be used standalone on any monochro
 The fit function is slow when used on large images due to the number of function evaluations - methods are provided for sensibly cropping and downsampling images such that the fit is much faster.
 
 
+## Jupyter Notebook
+
+The software has the ability to save and load individual frames.
+It accomplishes this task by using the Python's pickle module to save/load a `.pickle` file containing the dictionary object that stores all relevant image and beam data.
+A [Jupyter Notebook](https://github.com/OregonIons/mjolnir-frame-analyzer) was created to analyze saved frames.
+This Notebook simply stores the data and re-creates the images from the GUI. It's purpose is to be used as a starting point for any further analysis that the user may want to perform.
+
+
 ## Development
 
 ### Building executables
@@ -89,17 +97,6 @@ My own thoughts on this: conda itself is quite poor at keeping packages segregat
 Python 3.6 and PyInstaller 3.4 seem to play nicely together.
 The built executable should be around 80MB.
 
-Install ARTIQ, strip out all the packages we don't need, then install `mjolnir`.
-
-The only lines in `mjolnir` containing ARTIQ imports are:
-
-* `from artiq.protocols.pc_rpc import simple_server_loop`
-* `from artiq.tools import verbosity_args, simple_network_args, init_logger`
-* `from artiq.protocols.pc_rpc import Client`
-
-`artiq.protocols` is well isolated, but `artiq.tools` imports things from elsewhere in the codebase that spiral into lots of things being imported unnecessarily.
-Comment out the `is_experiment` import and any function you find it in!
-
 
 ### New features?
 
@@ -109,6 +106,6 @@ Please use the GitHub issue tracker to raise bugs/improvements.
 
 ## Acknowledgements
 
-The driver for the cameras (uc480) was taken from: <https://github.com/ddietze/pyUVVIS>.
+The driver for the Thorlabs DCx cameras (uc480) was taken from: <https://github.com/ddietze/pyUVVIS>.
 This appears to no longer be maintained.
 The driver uses the Thorlabs DLL mentioned previously.

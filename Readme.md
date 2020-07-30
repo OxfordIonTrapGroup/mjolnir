@@ -14,7 +14,7 @@ This version of Mjolnir uses [sipyco](https://github.com/m-labs/sipyco) for its 
 ## Installation
 
 Typically installation will use [conda](https://anaconda.org/) to provide a segregated python environment.
-This version is compatible with Python 3.7.
+This version is compatible with Python 3.5.3+.
 
 First, use pip to install [sipyco](https://github.com/m-labs/sipyco):
 

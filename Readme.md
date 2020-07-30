@@ -13,11 +13,6 @@ This version of Mjolnir uses [sipyco](https://github.com/m-labs/sipyco) for its 
 
 ## Installation
 
-The software currently uses the Thorlabs DLL (on Windows) that is installed when installing Thorcam.
-Make sure the DLL (usually located at `C:\Program Files\Thorlabs\Scientific Imaging\DCx Camera Support\USB Driver Package\uc480_64.dll` for Windows 64-bit) is on your system path, otherwise ctypes won't be able to find it.
-Linux support is tenuous at best but uses libueye from [IDS](https://en.ids-imaging.com/download-ueye-lin64.html).
-
-
 Typically installation will use [conda](https://anaconda.org/) to provide a segregated python environment.
 This version is compatible with Python 3.7.
 
@@ -29,7 +24,18 @@ Then use pip to install mjolnir into your environment:
 
 `pip install git+https://github.com/OxfordIonTrapGroup/mjolnir`
 
-The user may need to upgrade pip and uninstall/re-install all packages that were installed via pip.
+The software currently uses the Thorlabs DLLs (on Windows) that are installed when installing Thorcam.
+
+For Thorlabs DCx cameras, make sure the DLL (usually located at `C:\Program Files\Thorlabs\Scientific Imaging\DCx Camera Support\USB Driver Package\uc480_64.dll` for Windows 64-bit) is on your system path, otherwise ctypes won't be able to find it.
+
+For Thorlabs Scienfitic Imaging cameras, it is recommended that the user install the latest revision of the Windows SDK from [Thorlabs](https://www.thorlabs.com/software_pages/ViewSoftwarePage.cfm?Code=ThorCam).
+After installation, move the folder to the appropriate path (usually `C:\Program Files\Thorlabs\Scientific Imaging\Scientific Camera Support` for Windows).
+Then follow the instructions in the Python README (usually located in `Scientific_Camera_Interfaces-Rev_G\Scientific Camera Interfaces`) to move the DLLs to the appropriate folder and install the Python SDK to your conda environment.
+
+**For Thorlabs Scientific Imaging cameras, the user must specify the DLL folder path within mjolnir\drivers\tsi\_init_.py.**
+
+Linux support is tenuous at best but uses libueye from [IDS](https://en.ids-imaging.com/download-ueye-lin64.html).
+
 
 ## Usage
 

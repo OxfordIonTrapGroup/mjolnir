@@ -28,12 +28,14 @@ Then use pip to install mjolnir into your environment:
 
 `python -m pip install git+https://github.com/OxfordIonTrapGroup/mjolnir`
 
+Next, it is required that the user completes the steps in **both** of the following two sub-sections, regardless of which camera is being used.
+
 
 ### Thorlabs DCx Cameras
 
 The software currently uses the Thorlabs DLLs (on Windows) that are installed when installing Thorcam.
 
-Make sure the DLL (usually located at `C:\Program Files\Thorlabs\Scientific Imaging\DCx Camera Support\USB Driver Package\uc480_64.dll` for Windows 64-bit) is on your system path, otherwise ctypes won't be able to find it.
+Make sure the uc480 DLL (usually located at `C:\Program Files\Thorlabs\Scientific Imaging\DCx Camera Support\USB Driver Package\uc480_64.dll` for Windows 64-bit) is on your system path, otherwise ctypes won't be able to find it.
 
 Linux support is tenuous at best but uses libueye from [IDS](https://en.ids-imaging.com/download-ueye-lin64.html).
 
@@ -48,9 +50,11 @@ Then use pip to install the SDK to your environment:
 
 `python -m pip install "C:\Program Files\Thorlabs\Scientific Imaging\Scientific Camera Support\Scientific_Camera_Interfaces-Rev_G\Scientific Camera Interfaces\SDK\Python Compact Scientific Camera Toolkit\thorlabs_tsi_camera_python_sdk_package.zip"`
 
-**Finally, the user must specify the DLL folder path within `mjolnir\drivers\tsi\__init__.py`.**
+**Finally, the user must specify the Scientific Camera DLL folder path within `mjolnir\drivers\tsi\__init__.py`.**
 
 The folder path is usually `C:\Program Files\Thorlabs\Scientific Imaging\Scientific Camera Support\Scientific_Camera_Interfaces-Rev_G\Scientific Camera Interfaces\SDK\Native Compact Camera Toolkit\dlls`. The software automatically selects the Native_32_lib or Native_64_lib folder, depending on your system.
+
+**Note:** Do not specify the uc480 DLL path. As stated in the previous sub-section, c-types will find it.
 
 
 ## Usage

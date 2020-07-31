@@ -26,7 +26,7 @@ Next, use pip to install [sipyco](https://github.com/m-labs/sipyco):
 
 Then use pip to install mjolnir into your environment:
 
-`python -m pip install git+https://github.com/OxfordIonTrapGroup/mjolnir`
+`python -m pip install git+https://github.com/OregonIons/mjolnir`
 
 Next, it is required that the user completes the steps in **both** of the following two sub-sections, regardless of which camera is being used.
 

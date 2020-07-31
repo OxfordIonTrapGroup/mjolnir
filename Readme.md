@@ -111,15 +111,6 @@ This Notebook simply stores the data and re-creates the images from the GUI. It'
 
 ## Development
 
-### Building executables
-
-Building packaged executables is generally a pain in the neck - I wouldn't bother!
-
-My own thoughts on this: conda itself is quite poor at keeping packages segregated when building executables with PyInstaller (I ended up resorting to virtualenv instead of conda).
-Python 3.6 and PyInstaller 3.4 seem to play nicely together.
-The built executable should be around 80MB.
-
-
 ### New features?
 
 If `mjolnir` looks useful to you, feedback is appreciated!

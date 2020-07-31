@@ -37,13 +37,13 @@ class tsi:
         
         # change the value below to define dll system path
         path_to_dlls = r"C:\Program Files\Thorlabs\Scientific Imaging\Scientific Camera Support"\
-                       "\Scientific_Camera_Interfaces-Rev_G\Scientific Camera Interfaces\SDK"\
-                       "\Python Compact Scientific Camera Toolkit\dlls"
+                       r"\Scientific_Camera_Interfaces-Rev_G\Scientific Camera Interfaces\SDK"\
+                       r"\Native Compact Camera Toolkit\dlls"
 
         if is_64bits:
-            path_to_dlls += r"\64_lib"
+            path_to_dlls += r"\Native_64_lib"
         else:
-            path_to_dlls += r"\32_lib"
+            path_to_dlls += r"\Native_32_lib"
 
         os.environ['PATH'] = path_to_dlls + os.pathsep + os.environ['PATH']
 

@@ -1,6 +1,6 @@
 import pyqtgraph as pg
 import numpy as np
-from PyQt5 import QtGui, QtWidgets, QtCore
+from PyQt5 import QtWidgets, QtCore
 import collections
 
 from mjolnir.ui.worker import Worker
@@ -336,34 +336,34 @@ class BeamDisplay(QtWidgets.QMainWindow):
 
     def init_info_pane(self):
         """Initialise the info pane's permanent widgets"""
-        self.single_acq = QtGui.QPushButton("Single Acquisition")
-        self.start_acq = QtGui.QPushButton("Start Acquisition")
-        self.stop_acq = QtGui.QPushButton("Stop Acquisition")
+        self.single_acq = QtWidgets.QPushButton("Single Acquisition")
+        self.start_acq = QtWidgets.QPushButton("Start Acquisition")
+        self.stop_acq = QtWidgets.QPushButton("Stop Acquisition")
 
-        self.exposure = QtGui.QDoubleSpinBox()
+        self.exposure = QtWidgets.QDoubleSpinBox()
         self.exposure.setSuffix(" ms")
         self.get_exposure_params()
 
-        self.maj_radius = QtGui.QLabel()
-        self.min_radius = QtGui.QLabel()
-        self.avg_radius = QtGui.QLabel()
-        self.ellipticity = QtGui.QLabel()
-        self.x_radius = QtGui.QLabel()
-        self.y_radius = QtGui.QLabel()
-        self.x_centroid = QtGui.QLabel()
-        self.y_centroid = QtGui.QLabel()
+        self.maj_radius = QtWidgets.QLabel()
+        self.min_radius = QtWidgets.QLabel()
+        self.avg_radius = QtWidgets.QLabel()
+        self.ellipticity = QtWidgets.QLabel()
+        self.x_radius = QtWidgets.QLabel()
+        self.y_radius = QtWidgets.QLabel()
+        self.x_centroid = QtWidgets.QLabel()
+        self.y_centroid = QtWidgets.QLabel()
 
         # Mark current beam position
-        self.mark = QtGui.QPushButton("Mark")
-        self.unmark = QtGui.QPushButton("Unmark")
+        self.mark = QtWidgets.QPushButton("Mark")
+        self.unmark = QtWidgets.QPushButton("Unmark")
 
         # Mark location
-        self.mark_x = QtGui.QLabel()
-        self.mark_y = QtGui.QLabel()
+        self.mark_x = QtWidgets.QLabel()
+        self.mark_y = QtWidgets.QLabel()
 
         # Beam distance from marked location
-        self.x_delta = QtGui.QLabel()
-        self.y_delta = QtGui.QLabel()
+        self.x_delta = QtWidgets.QLabel()
+        self.y_delta = QtWidgets.QLabel()
 
         # Keep a list of mark sub-widgets so we can hide/show them
         # Obviously we don't want to hide the mark buttons themselves
@@ -372,9 +372,9 @@ class BeamDisplay(QtWidgets.QMainWindow):
             # self.x_delta, self.y_delta,
         ])
 
-        self.fps = QtGui.QLabel()
-        self.message = QtGui.QLabel()
-        self.status = QtGui.QLabel("Stopped")
+        self.fps = QtWidgets.QLabel()
+        self.message = QtWidgets.QLabel()
+        self.status = QtWidgets.QLabel("Stopped")
 
     def init_graphics(self):
         """Initialise the important graphics items"""
@@ -450,25 +450,25 @@ class BeamDisplay(QtWidgets.QMainWindow):
     def layout_info_pane(self):
         """Add info pane widgets to their layout"""
         self.param_layout = QtWidgets.QFormLayout()
-        self.param_layout.addRow(QtGui.QLabel("<b>Beam Parameters</b>"))
-        self.param_layout.addRow(QtGui.QLabel("<i>(all radii are 1/e<sup>2</sup>)</i>"))
-        self.param_layout.addRow(QtGui.QWidget())
+        self.param_layout.addRow(QtWidgets.QLabel("<b>Beam Parameters</b>"))
+        self.param_layout.addRow(QtWidgets.QLabel("<i>(all radii are 1/e<sup>2</sup>)</i>"))
+        self.param_layout.addRow(QtWidgets.QWidget())
         self.param_layout.addRow("Semi-major radius:", self.maj_radius)
         self.param_layout.addRow("Semi-minor radius:", self.min_radius)
         self.param_layout.addRow("Average radius:", self.avg_radius)
         self.param_layout.addRow("Ellipticity:", self.ellipticity)
-        self.param_layout.addRow(QtGui.QWidget())
+        self.param_layout.addRow(QtWidgets.QWidget())
         self.param_layout.addRow("X radius:", self.x_radius)
         self.param_layout.addRow("Y radius:", self.y_radius)
-        self.param_layout.addRow(QtGui.QWidget())
+        self.param_layout.addRow(QtWidgets.QWidget())
         self.param_layout.addRow("X position:", self.x_centroid)
         self.param_layout.addRow("Y position:", self.y_centroid)
-        self.param_layout.addRow(QtGui.QWidget())
+        self.param_layout.addRow(QtWidgets.QWidget())
 
-        mark_x_label = QtGui.QLabel("Mark X:")
-        mark_y_label = QtGui.QLabel("Mark Y:")
-        dx_label = QtGui.QLabel("ΔX:")
-        dy_label = QtGui.QLabel("ΔY:")
+        mark_x_label = QtWidgets.QLabel("Mark X:")
+        mark_y_label = QtWidgets.QLabel("Mark Y:")
+        dx_label = QtWidgets.QLabel("ΔX:")
+        dy_label = QtWidgets.QLabel("ΔY:")
         self.mark_widgets.extend([
             mark_x_label, mark_y_label,
             # dx_label, dy_label,
@@ -481,7 +481,7 @@ class BeamDisplay(QtWidgets.QMainWindow):
         for w in self.mark_widgets:
             w.hide()
 
-        self.param_widget = QtGui.QWidget()
+        self.param_widget = QtWidgets.QWidget()
         self.param_widget.setLayout(self.param_layout)
 
         self.info_pane_layout = QtWidgets.QVBoxLayout()

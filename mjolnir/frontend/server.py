@@ -4,22 +4,16 @@ import sys
 import time
 import zmq
 
-from artiq.protocols.pc_rpc import simple_server_loop
-from artiq.tools import simple_network_args, init_logger
+from sipyco.pc_rpc import simple_server_loop
+from sipyco.common_args import (simple_network_args, verbosity_args,
+                                init_logger_from_args)
 from mjolnir.drivers.camera import Camera, list_serial_numbers
-
-# Copy pasted from oxart, since that isn't publicly available
-# verbosity_args() was renamed to add_common_args() in ARTIQ 5.0; support both.
-try:
-    from artiq.tools import add_common_args
-except ImportError:
-    from artiq.tools import verbosity_args as add_common_args
 
 
 def get_argparser():
     parser = argparse.ArgumentParser()
     simple_network_args(parser, 4000)
-    add_common_args(parser)
+    verbosity_args(parser)
     parser.add_argument("--list", action="store_true",
         help="list connected cameras (ignores all other arguments)")
     parser.add_argument("--broadcast-images", action="store_true")
@@ -52,7 +46,7 @@ def run_server(dev, args):
 
 def main():
     args = get_argparser().parse_args()
-    init_logger(args)
+    init_logger_from_args(args)
 
     if args.list:
         serials = list_serial_numbers()

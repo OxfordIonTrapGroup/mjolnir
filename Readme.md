@@ -4,9 +4,7 @@ A suite of (fairly minimal) programs to replace ThorCam, built using pyqtgraph.
 The Thorlabs cameras are just rebadged [IDS](https://en.ids-imaging.com/home.html) cameras, so IDS's software could be better, but I haven't tried it.
 The `mjolnir` GUI can connect to cameras directly via USB, or you can use the server script to send images to GUI subscribers over a local network.
 
-Mjolnir uses ARTIQ for its remote procedure calls (RPCs).
-~~Installing ARTIQ is overkill, since we only need the protocols, but it's ubiquitous in the Oxford Ion Trap Group and no minimal version is available.~~
-I need to patch in [sipyco](https://github.com/m-labs/sipyco)!
+Mjolnir uses [sipyco](https://github.com/m-labs/sipyco) for its remote procedure calls (RPCs).
 
 
 ## Installation
@@ -17,9 +15,9 @@ Linux support is tenuous at best but uses libueye from [IDS](https://en.ids-imag
 
 
 Typically installation will use [conda](https://anaconda.org/) to provide a segregated python environment.
-First, follow the [instructions for installing ARTIQ](https://m-labs.hk/artiq/manual/installing.html).
-Then use pip to install mjolnir into your environment:
+Use pip to install `sipyco` and `mjolnir` into your environment:
 
+`pip install git+https://github.com/m-labs/sipyco.git`
 `pip install git+https://github.com/OxfordIonTrapGroup/mjolnir`
 
 
@@ -74,17 +72,6 @@ Building packaged executables is generally a pain in the neck - I wouldn't bothe
 My own thoughts on this: conda itself is quite poor at keeping packages segregated when building executables with PyInstaller (I ended up resorting to virtualenv instead of conda).
 Python 3.6 and PyInstaller 3.4 seem to play nicely together.
 The built executable should be around 80MB.
-
-Install ARTIQ, strip out all the packages we don't need, then install `mjolnir`.
-
-The only lines in `mjolnir` containing ARTIQ imports are:
-
-* `from artiq.protocols.pc_rpc import simple_server_loop`
-* `from artiq.tools import verbosity_args, simple_network_args, init_logger`
-* `from artiq.protocols.pc_rpc import Client`
-
-`artiq.protocols` is well isolated, but `artiq.tools` imports things from elsewhere in the codebase that spiral into lots of things being imported unnecessarily.
-Comment out the `is_experiment` import and any function you find it in!
 
 
 ### New features?
